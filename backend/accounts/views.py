@@ -14,6 +14,8 @@ from django.utils.decorators import method_decorator
 from django.views import View
 from django.contrib.auth import logout
 from django.shortcuts import redirect
+from django.shortcuts import get_object_or_404
+from django.http import JsonResponse
 
 class CreateUserView(generics.CreateAPIView):
     model = get_user_model()
@@ -64,6 +66,15 @@ def upload_view(request):
     else:
         form = FileUploadForm()
     return render(request, 'accounts/upload.html', {'form': form})
+
+@login_required
+def delete_file(request, file_id):
+    if request.method == 'POST':
+        file = get_object_or_404(UploadedFile, id=file_id, user=request.user)
+        file.file.delete()  # Delete the file from storage
+        file.delete()  # Delete the database entry
+        return JsonResponse({'success': True})
+    return JsonResponse({'success': False}, status=400)
 
 @login_required
 def library_view(request):

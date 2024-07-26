@@ -1,5 +1,5 @@
 from django.urls import path
-from .views import FileUploadView, FileListView, library_view, CreateUserView, SignUpView
+from .views import FileUploadView, FileListView, library_view, CreateUserView, SignUpView, delete_file
 
 urlpatterns = [
     # API routes
@@ -12,4 +12,5 @@ urlpatterns = [
     # Add any other account-specific routes here,
     path('signup/', SignUpView.as_view(), name='signup'),
     path('upload/', FileUploadView.as_view(), name='file-upload'),
+    path('delete-file/<int:file_id>/', delete_file, name='delete_file'),
 ]

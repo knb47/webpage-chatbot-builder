@@ -1,5 +1,9 @@
 #!/bin/sh
+#!/bin/sh
 echo "Running in ${DJANGO_ENV:-development} mode"
+
+# Make migrations
+python manage.py makemigrations
 
 # Run migrations
 python manage.py migrate
