@@ -1,0 +1,9 @@
+.env
+__pycache__
+.env.dev
+.env.prod
+test_db.py
+dev_tools
+.venv/
+db.sqlite3
+user-backend/

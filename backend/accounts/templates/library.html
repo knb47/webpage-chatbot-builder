@@ -1,0 +1,16 @@
+
+
+{% extends 'base.html' %}
+
+{% block title %}Library{% endblock %}
+
+{% block content %}
+<h1>Your Uploaded Files</h1>
+<ul>
+    {% for file in files %}
+        <li>{{ file.file.name }}</li>
+    {% empty %}
+        <li>No files uploaded.</li>
+    {% endfor %}
+</ul>
+{% endblock %}

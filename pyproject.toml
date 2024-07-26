@@ -1,0 +1,23 @@
+[tool.poetry]
+name = "user-backend"
+version = "0.1.0"
+description = ""
+authors = ["Kyle Brandt"]
+package-mode = false
+readme = "README.md"
+
+
+[tool.poetry.dependencies]
+python = "^3.10"
+Django = "^5.0.7"
+psycopg2-binary = "^2.9.1"
+django-storages = "^1.11.1"
+boto3 = "^1.17.78"
+python-dotenv = "^0.17.1"
+djangorestframework = "^3.15.2"
+gunicorn = "^22.0.0"
+psycopg2 = "^2.9.9"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"
