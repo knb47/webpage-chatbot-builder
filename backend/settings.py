@@ -93,11 +93,23 @@ TEMPLATES = [
     },
 ]
 
+### CUSTOM ADDITIONS ###
 AUTH_USER_MODEL = "accounts.CustomUser"
 
 LOGIN_REDIRECT_URL = 'home'  # Redirect to home page after login
 LOGIN_URL = 'login'  # Where to redirect if a login is required
 LOGOUT_REDIRECT_URL = 'login'  # Redirect to login page after logout
+
+# Celery Configuration Options
+# Celery Configuration Options
+CELERY_BROKER_URL = os.environ.get('CELERY_BROKER_URL')
+CELERY_RESULT_BACKEND = os.environ.get('CELERY_RESULT_BACKEND', 'rpc://')
+CELERY_ACCEPT_CONTENT = ['json']
+CELERY_TASK_SERIALIZER = 'json'
+CELERY_RESULT_SERIALIZER = 'json'
+CELERY_TIMEZONE = 'UTC'
+
+### END ADDITIONS ###
 
 WSGI_APPLICATION = 'backend.wsgi.application'
 
@@ -129,3 +141,24 @@ USE_TZ = True
 STATIC_URL = '/static/'
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
+
+# LOGGING
+
+DEBUG = os.environ.get('DJANGO_DEBUG', 'True') == 'True'
+
+print(f"Django Debug Mode: {DEBUG}")
+
+if DEBUG:
+    LOGGING = {
+        'version': 1,
+        'disable_existing_loggers': False,
+        'handlers': {
+            'console': {
+                'class': 'logging.StreamHandler',
+            },
+        },
+        'root': {
+            'handlers': ['console'],
+            'level': 'DEBUG',
+        },
+    }

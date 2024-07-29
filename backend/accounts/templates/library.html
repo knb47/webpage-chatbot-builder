@@ -9,11 +9,14 @@
         <li id="file-{{ file.id }}">
             {{ file.file.name }}
             <button class="btn btn-danger btn-sm delete-file" data-file-id="{{ file.id }}">Delete</button>
+            <button class="btn btn-primary btn-sm deploy-file" data-file-id="{{ file.id }}">Deploy</button>
         </li>
     {% empty %}
         <li>No files uploaded.</li>
     {% endfor %}
 </ul>
+
+<div id="deployment-status"></div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -21,6 +24,10 @@ document.addEventListener('DOMContentLoaded', function() {
         if (event.target.classList.contains('delete-file')) {
             const fileId = event.target.getAttribute('data-file-id');
             handleDelete(fileId);
+        }
+        if (event.target.classList.contains('deploy-file')) {
+            const fileId = event.target.getAttribute('data-file-id');
+            handleDeploy(fileId);
         }
     });
 });
@@ -52,6 +59,50 @@ function handleDelete(fileId) {
                 button.textContent = 'Delete';
             });
     }
+}
+
+function handleDeploy(fileId) {
+    if (confirm('Are you sure you want to deploy this chat app?')) {
+        const button = document.querySelector(`[data-file-id="${fileId}"]`);
+        button.disabled = true;
+        button.textContent = 'Deploying...';
+
+        fetch(`/deploy/${fileId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            }
+        }).then(response => response.json())
+          .then(data => {
+              const taskId = data.task_id;
+              checkDeploymentStatus(taskId);
+          })
+          .catch(error => {
+              console.error('Error:', error);
+              alert('An error occurred while deploying the chat app');
+              button.disabled = false;
+              button.textContent = 'Deploy';
+          });
+    }
+}
+
+function checkDeploymentStatus(taskId) {
+    fetch(`/deployment_status/${taskId}/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'pending') {
+                document.getElementById('deployment-status').innerHTML = 'Deployment is in progress...';
+                setTimeout(() => checkDeploymentStatus(taskId), 5000);
+            } else if (data.status === 'completed') {
+                document.getElementById('deployment-status').innerHTML = 'Deployment completed! Endpoint: ' + data.endpoint;
+            } else {
+                document.getElementById('deployment-status').innerHTML = 'Deployment failed: ' + data.error;
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('deployment-status').innerHTML = 'An error occurred while checking deployment status';
+        });
 }
 
 async function deleteFile(fileId) {

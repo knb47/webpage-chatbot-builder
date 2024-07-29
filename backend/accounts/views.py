@@ -1,21 +1,19 @@
-from django.shortcuts import render, redirect
-from django.contrib.auth import authenticate, login
+# backend/accounts/views.py
+
+from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from rest_framework import generics
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from .serializers import UserSerializer, FileUploadSerializer
-from .models import UploadedFile
-from .forms import FileUploadForm  # Ensure this is defined in forms.py
-from django.contrib.auth import get_user_model
+from .serializers import UserSerializer, FileUploadSerializer, DeploymentSerializer
+from .models import UploadedFile, Deployment
+from .forms import FileUploadForm, CustomUserCreationForm
+from django.contrib.auth import get_user_model, authenticate, login, logout
 from django.urls import reverse_lazy
 from django.views.generic.edit import CreateView
-from .forms import CustomUserCreationForm
 from django.utils.decorators import method_decorator
 from django.views import View
-from django.contrib.auth import logout
-from django.shortcuts import redirect
-from django.shortcuts import get_object_or_404
 from django.http import JsonResponse
+from .tasks import deploy_chat_app
 
 class CreateUserView(generics.CreateAPIView):
     model = get_user_model()
@@ -43,18 +41,6 @@ class FileListView(generics.ListAPIView):
     def get_queryset(self):
         return UploadedFile.objects.filter(user=self.request.user)
 
-def login_view(request):
-    if request.method == 'POST':
-        username = request.POST['username']
-        password = request.POST['password']
-        user = authenticate(request, username=username, password=password)
-        if user:
-            login(request, user)
-            return redirect('library')
-        else:
-            return render(request, 'accounts/login.html', {'error': 'Invalid credentials'})
-    return render(request, 'accounts/login.html')
-
 @login_required
 def upload_view(request):
     if request.method == 'POST':
@@ -71,8 +57,8 @@ def upload_view(request):
 def delete_file(request, file_id):
     if request.method == 'POST':
         file = get_object_or_404(UploadedFile, id=file_id, user=request.user)
-        file.file.delete()  # Delete the file from storage
-        file.delete()  # Delete the database entry
+        file.file.delete()
+        file.delete()
         return JsonResponse({'success': True})
     return JsonResponse({'success': False}, status=400)
 
@@ -93,3 +79,33 @@ class SignUpView(CreateView):
 def custom_logout(request):
     logout(request)
     return redirect('login')
+
+@login_required
+def deploy_view(request, file_id):
+    config_file = get_object_or_404(UploadedFile, id=file_id, user=request.user)
+    task = deploy_chat_app.apply_async(args=[request.user.id, config_file.file.name])
+    return JsonResponse({'task_id': task.id})
+
+@login_required
+def deployment_status_view(request, task_id):
+    task = deploy_chat_app.AsyncResult(task_id)
+    if task.state == 'SUCCESS':
+        result = task.result
+        if result.get('status') == 'completed':
+            return JsonResponse({
+                'status': 'completed',
+                'endpoint': result.get('endpoint'),
+                'config_file_name': result.get('config_file_name'),
+                'config_file_id': result.get('config_file_id')
+            })
+        else:
+            return JsonResponse({'status': 'failed', 'error': result.get('error', 'Unknown error')})
+    elif task.state == 'FAILURE':
+        return JsonResponse({'status': 'failed', 'error': str(task.info)})
+    else:
+        return JsonResponse({'status': 'pending'})
+
+@login_required
+def deployments_view(request):
+    deployments = Deployment.objects.filter(user=request.user)
+    return render(request, 'deployments.html', {'deployments': deployments})

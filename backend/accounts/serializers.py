@@ -1,5 +1,6 @@
 from django.contrib.auth import get_user_model
 from rest_framework import serializers
+from .models import UploadedFile, Deployment
 
 class UserSerializer(serializers.ModelSerializer):
     class Meta:
@@ -17,3 +18,10 @@ class FileUploadSerializer(serializers.ModelSerializer):
     class Meta:
         model = UploadedFile
         fields = ['id', 'file', 'uploaded_at']
+
+class DeploymentSerializer(serializers.ModelSerializer):
+    config_file = FileUploadSerializer()
+
+    class Meta:
+        model = Deployment
+        fields = ['id', 'user', 'config_file', 'endpoint', 'deployed_at']

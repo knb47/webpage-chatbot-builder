@@ -1,0 +1,66 @@
+# Use an official Python runtime as a parent image
+FROM python:3.11
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE 1
+ENV PYTHONUNBUFFERED 1
+
+# Set work directory
+WORKDIR /app
+
+# Install system dependencies
+RUN apt-get update && apt-get install -y \
+    netcat-openbsd \
+    ca-certificates \
+    curl \
+    gnupg \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js 18 and npm
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs
+
+# Verify Node.js and npm installation
+RUN node --version && npm --version
+
+# Check npm global installation path
+RUN npm config get prefix
+
+# Create a non-root user
+RUN useradd -m celeryuser
+
+# Install Serverless globally
+RUN npm install -g serverless@3.33.0
+
+# Install AWS CLI
+RUN apt-get update && apt-get install -y awscli
+
+# Verify Serverless installation
+RUN which serverless
+RUN serverless --version
+
+# Check npm global installation directory
+RUN ls -l $(npm config get prefix)/lib/node_modules/
+
+# Adjust permissions for the Serverless installation directory
+RUN chown -R celeryuser:celeryuser $(npm config get prefix)/lib/node_modules/serverless || true
+RUN chown -R celeryuser:celeryuser $(which serverless) || true
+
+# Install Poetry
+RUN pip install --no-cache-dir poetry
+
+# Copy project files
+COPY pyproject.toml poetry.lock* /app/
+
+# Install project dependencies
+RUN poetry config virtualenvs.create false \
+    && poetry install --no-interaction --no-ansi --no-root
+
+# Copy project
+COPY . /app/
+
+# Switch to non-root user
+USER celeryuser
+
+# Run the Celery worker
+CMD celery -A backend worker --loglevel=${CELERY_LOG_LEVEL:-INFO}
