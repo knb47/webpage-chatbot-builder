@@ -1,3 +1,4 @@
+# models.py
 from django.contrib.auth.models import AbstractUser
 from django.db import models
 from django.contrib.auth import get_user_model
@@ -17,6 +18,7 @@ class CustomUser(AbstractUser):
 class UploadedFile(models.Model):
     user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE)
     file = models.FileField(upload_to=PathAndRename('uploads'))
+    file_name = models.CharField(max_length=255)
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
 class Deployment(models.Model):

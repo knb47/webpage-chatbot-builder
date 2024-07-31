@@ -23,15 +23,25 @@ class CreateUserView(generics.CreateAPIView):
 @method_decorator(login_required, name='dispatch')
 class FileUploadView(View):
     def get(self, request):
+        print("GET request received")
         form = FileUploadForm()
+        print("Rendering upload form")
         return render(request, 'upload.html', {'form': form})
 
     def post(self, request):
+        print("POST request received")
         form = FileUploadForm(request.POST, request.FILES)
         if form.is_valid():
-            newfile = UploadedFile(file=request.FILES['file'], user=request.user)
+            file = request.FILES['file']
+            file_name = file.name
+            print(f"Uploading file with name: {file_name}")
+            newfile = UploadedFile(file=file, file_name=file_name, user=request.user)
             newfile.save()
+            print(f"Saved file with ID: {newfile.id}, name: {newfile.file_name}")
             return redirect('library')
+        else:
+            print("Form is not valid")
+            print(f"Form errors: {form.errors}")
         return render(request, 'upload.html', {'form': form})
 
 class FileListView(generics.ListAPIView):
@@ -40,19 +50,7 @@ class FileListView(generics.ListAPIView):
 
     def get_queryset(self):
         return UploadedFile.objects.filter(user=self.request.user)
-
-@login_required
-def upload_view(request):
-    if request.method == 'POST':
-        form = FileUploadForm(request.POST, request.FILES)
-        if form.is_valid():
-            newfile = UploadedFile(file=request.FILES['file'], user=request.user)
-            newfile.save()
-            return redirect('library')
-    else:
-        form = FileUploadForm()
-    return render(request, 'accounts/upload.html', {'form': form})
-
+    
 @login_required
 def delete_file_view(request, file_id):
     if request.method == 'POST':
@@ -66,7 +64,8 @@ def delete_file_view(request, file_id):
 def library_view(request):
     files = UploadedFile.objects.filter(user=request.user)
     for file in files:
-        file.deployed = Deployment.objects.filter(config_file_name=file.file.name, user=request.user).exists()
+        print(f"Retrieved file with name: {file.file_name}")  # Debugging statement
+        file.deployed = Deployment.objects.filter(config_file_name=file.file_name, user=request.user).exists()
     return render(request, 'library.html', {'files': files})
 
 @login_required

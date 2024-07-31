@@ -11,13 +11,11 @@ class UserSerializer(serializers.ModelSerializer):
     def create(self, validated_data):
         user = get_user_model().objects.create_user(**validated_data)
         return user
-    
-from .models import UploadedFile
 
 class FileUploadSerializer(serializers.ModelSerializer):
     class Meta:
         model = UploadedFile
-        fields = ['id', 'file', 'uploaded_at']
+        fields = ['id', 'file', 'file_name', 'uploaded_at']
 
 class DeploymentSerializer(serializers.ModelSerializer):
     config_file = FileUploadSerializer()

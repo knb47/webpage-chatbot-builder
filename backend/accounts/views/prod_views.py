@@ -46,7 +46,8 @@ def upload_view(request):
     if request.method == 'POST':
         form = FileUploadForm(request.POST, request.FILES)
         if form.is_valid():
-            newfile = UploadedFile(file=request.FILES['file'], user=request.user)
+            file = request.FILES['file']
+            newfile = UploadedFile(file=file, file_name=file.name, user=request.user)
             newfile.save()
             return redirect('library')
     else:
@@ -66,7 +67,7 @@ def delete_file(request, file_id):
 def library_view(request):
     files = UploadedFile.objects.filter(user=request.user)
     for file in files:
-        file.deployed = Deployment.objects.filter(config_file=file, user=request.user).exists()
+        file.deployed = Deployment.objects.filter(config_file_name=file.file_name, user=request.user).exists()
     return render(request, 'library.html', {'files': files})
 
 @login_required

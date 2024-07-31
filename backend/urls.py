@@ -19,6 +19,7 @@ from django.contrib import admin
 from django.urls import path, include
 from django.conf import settings
 from django.contrib.auth import views as auth_views
+from django.conf.urls.static import static
 
 # Conditional import based on environment
 print(f"settings.DEBUG: {settings.DEBUG}")
@@ -42,4 +43,4 @@ urlpatterns = [
     
     # Include other account-related URLs
     path('account/', include('backend.accounts.urls')),
-]
+]+ static(settings.STATIC_URL, document_root=settings.STATIC_ROOT)
