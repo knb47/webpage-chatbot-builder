@@ -11,3 +11,4 @@ app_skeleton_code/
 .DS_Store
 media/
 dev_user_uploads/
+staticfiles
