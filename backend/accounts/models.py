@@ -9,7 +9,6 @@ class PathAndRename:
         self.path = path
 
     def __call__(self, instance, filename):
-        # file will be uploaded to MEDIA_ROOT/user_<id>/<filename>
         return f'{self.path}/user_{instance.user.id}/{filename}'
 
 class CustomUser(AbstractUser):
@@ -27,7 +26,8 @@ class Deployment(models.Model):
     ]
 
     user = models.ForeignKey(get_user_model(), null=True, on_delete=models.SET_NULL)
-    config_file = models.ForeignKey(UploadedFile, on_delete=models.PROTECT)
+    config_file_name = models.CharField(max_length=255)
+    chatbot_name = models.CharField(max_length=255)
     endpoint = models.URLField()
     deployed_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')

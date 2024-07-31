@@ -4,14 +4,23 @@
 
 {% block content %}
 <h1 class="text-2xl font-bold mb-4">Your Uploaded Files</h1>
+
+<!-- Notification pop-up -->
+<div id="notification" class="alert alert-success alert-dismissible fade show" role="alert" style="display: none;">
+    <span id="notification-message"></span>
+    <button type="button" class="btn-close" aria-label="Close" onclick="hideNotification()"></button>
+</div>
+
 <ul id="file-list" class="space-y-4">
     {% for file in files %}
         <li id="file-{{ file.id }}" class="border rounded-lg p-4 shadow-lg bg-white">
             <div class="flex justify-between items-center">
                 <div>
-                    <p class="font-semibold">{{ file.file.name }}</p>
+                    <p class="font-semibold">{{ file.file.name|basename }}</p>
                     {% if file.deployed %}
-                        <p class="text-sm text-green-600 mt-2">This configuration is currently deployed.</p>
+                        <p class="text-sm text-green-600 mt-2 deployed-text">This configuration is currently deployed.</p>
+                    {% else %}
+                        <p class="text-sm text-green-600 mt-2 deployed-text" style="display: none;">This configuration is currently deployed.</p>
                     {% endif %}
                 </div>
                 <div class="flex space-x-2">
@@ -24,8 +33,6 @@
         <li class="text-gray-500">No files uploaded.</li>
     {% endfor %}
 </ul>
-
-<div id="deployment-status" class="mt-4 text-gray-700"></div>
 
 <script>
 document.addEventListener('DOMContentLoaded', function() {
@@ -46,7 +53,7 @@ function handleDelete(fileId) {
         const button = document.querySelector(`[data-file-id="${fileId}"]`);
         button.disabled = true;
         button.textContent = 'Deleting...';
-        
+
         deleteFile(fileId)
             .then(success => {
                 if (success) {
@@ -55,6 +62,7 @@ function handleDelete(fileId) {
                     if (document.getElementById('file-list').children.length === 0) {
                         document.getElementById('file-list').innerHTML = '<li class="text-gray-500">No files uploaded.</li>';
                     }
+                    showNotification('File deleted successfully.');
                 } else {
                     alert('Failed to delete file');
                     button.disabled = false;
@@ -91,7 +99,7 @@ function handleDeploy(fileId) {
     }).then(response => response.json())
       .then(data => {
           const taskId = data.task_id;
-          checkDeploymentStatus(taskId);
+          checkDeploymentStatus(taskId, fileId);
       })
       .catch(error => {
           console.error('Error:', error);
@@ -101,46 +109,58 @@ function handleDeploy(fileId) {
       });
 }
 
-function checkDeploymentStatus(taskId) {
+function checkDeploymentStatus(taskId, fileId) {
     fetch(`/account/deployment_status/${taskId}/`)
         .then(response => response.json())
         .then(data => {
             if (data.status === 'pending') {
-                document.getElementById('deployment-status').innerHTML = 'Deployment is in progress...';
-                setTimeout(() => checkDeploymentStatus(taskId), 5000);
+                setTimeout(() => checkDeploymentStatus(taskId, fileId), 5000);
             } else if (data.status === 'completed') {
-                document.getElementById('deployment-status').innerHTML = 'Deployment completed! Endpoint: ' + data.endpoint;
-                showNotification('Deployment completed successfully!');
-                resetDeployButtons();
+                const fileItem = document.getElementById(`file-${fileId}`);
+                const deployButton = fileItem.querySelector('.deploy-file');
+                deployButton.disabled = false;
+                deployButton.textContent = 'Deploy';
+                fileItem.querySelector('.deployed-text').style.display = 'block';
+                showNotification(`Deployment for '${data.config_file_name}' completed! <a href="/account/deployments/">Click here</a> to see your deployment.`);
+                deployButton.setAttribute('data-deployed', 'true');
             } else {
-                document.getElementById('deployment-status').innerHTML = 'Deployment failed: ' + data.error;
-                resetDeployButtons();
+                alert('Deployment failed: ' + data.error);
+                const deployButton = document.querySelector(`[data-file-id="${fileId}"]`);
+                deployButton.disabled = false;
+                deployButton.textContent = 'Deploy';
             }
         })
         .catch(error => {
             console.error('Error:', error);
-            document.getElementById('deployment-status').innerHTML = 'An error occurred while checking deployment status';
-            resetDeployButtons();
+            alert('An error occurred while checking deployment status');
+            const deployButton = document.querySelector(`[data-file-id="${fileId}"]`);
+            deployButton.disabled = false;
+            deployButton.textContent = 'Deploy';
         });
-}
-
-function resetDeployButtons() {
-    document.querySelectorAll('.deploy-file').forEach(button => {
-        button.disabled = false;
-        button.textContent = 'Deploy';
-    });
 }
 
 function showNotification(message) {
-    if (Notification.permission === 'granted') {
-        new Notification(message);
-    } else if (Notification.permission !== 'denied') {
-        Notification.requestPermission().then(permission => {
-            if (permission === 'granted') {
-                new Notification(message);
-            }
-        });
-    }
+    const notification = document.getElementById('notification');
+    const notificationMessage = document.getElementById('notification-message');
+    notificationMessage.innerHTML = message;
+    notification.style.display = 'block';
+
+    setTimeout(() => {
+        notification.classList.add('show');
+    }, 10);
+
+    setTimeout(() => {
+        hideNotification();
+    }, 5000);
+}
+
+function hideNotification() {
+    const notification = document.getElementById('notification');
+    notification.classList.remove('show');
+
+    setTimeout(() => {
+        notification.style.display = 'none';
+    }, 500);
 }
 
 async function deleteFile(fileId) {

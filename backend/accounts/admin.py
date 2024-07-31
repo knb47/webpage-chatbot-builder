@@ -12,8 +12,12 @@ class UploadedFileAdmin(admin.ModelAdmin):
 
 @admin.register(Deployment)
 class DeploymentAdmin(admin.ModelAdmin):
-    list_display = ('id', 'user', 'config_file', 'endpoint', 'deployed_at', 'status')
+    list_display = ('id', 'user', 'config_file_name', 'endpoint', 'deployed_at', 'status')
     search_fields = ('user__username', 'endpoint')
     list_filter = ('status',)
+
+    def config_file_name(self, obj):
+        return obj.config_file.file.name
+    config_file_name.short_description = 'Config File'
 
 admin.site.register(CustomUser, CustomUserAdmin)

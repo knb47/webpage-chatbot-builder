@@ -11,6 +11,9 @@ from django.views.generic.edit import CreateView
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.http import JsonResponse
+import logging
+
+logger = logging.getLogger(__name__)
 
 class CreateUserView(generics.CreateAPIView):
     model = get_user_model()
@@ -63,7 +66,7 @@ def delete_file_view(request, file_id):
 def library_view(request):
     files = UploadedFile.objects.filter(user=request.user)
     for file in files:
-        file.deployed = Deployment.objects.filter(config_file=file, user=request.user).exists()
+        file.deployed = Deployment.objects.filter(config_file_name=file.file.name, user=request.user).exists()
     return render(request, 'library.html', {'files': files})
 
 @login_required
@@ -72,15 +75,19 @@ def home_view(request):
 
 class SignUpView(CreateView):
     form_class = CustomUserCreationForm
-    success_url = reverse_lazy('login')
+    success_url = reverse_lazy('home')
     template_name = 'signup.html'
 
     def form_valid(self, form):
         response = super().form_valid(form)
-        # Authenticate and log the user in
-        user = authenticate(username=form.cleaned_data['username'], password=form.cleaned_data['password1'])
+        username = form.cleaned_data['username']
+        password = form.cleaned_data['password1']
+        user = authenticate(username=username, password=password)
         if user is not None:
             login(self.request, user)
+            logger.info(f'User {username} signed up and logged in successfully.')
+        else:
+            logger.error(f'User {username} could not be authenticated after sign-up.')
         return response
 
 def custom_logout(request):
@@ -90,11 +97,15 @@ def custom_logout(request):
 @login_required
 def deploy_view(request, file_id):
     config_file = get_object_or_404(UploadedFile, id=file_id, user=request.user)
+    chatbot_name = "MyChatbot"  # Replace with actual chatbot name if available
+    endpoint = 'http://example.com/endpoint'  # Replace with actual endpoint if available
+
     # Mock the deployment process
     deployment = Deployment.objects.create(
         user=request.user,
-        config_file=config_file,
-        endpoint='http://example.com/endpoint',
+        config_file_name=config_file.file.name,
+        chatbot_name=chatbot_name,
+        endpoint=endpoint,
         status='completed'
     )
     return JsonResponse({'task_id': deployment.id})
@@ -105,8 +116,8 @@ def deployment_status_view(request, task_id):
     return JsonResponse({
         'status': 'completed',
         'endpoint': deployment.endpoint,
-        'config_file_name': deployment.config_file.file.name,
-        'config_file_id': deployment.config_file.id
+        'config_file_name': deployment.config_file_name,
+        'config_file_id': deployment.id
     })
 
 @login_required
