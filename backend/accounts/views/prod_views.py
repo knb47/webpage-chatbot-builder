@@ -4,16 +4,16 @@ from django.shortcuts import render, redirect, get_object_or_404
 from django.contrib.auth.decorators import login_required
 from rest_framework import generics
 from rest_framework.permissions import AllowAny, IsAuthenticated
-from .serializers import UserSerializer, FileUploadSerializer, DeploymentSerializer
-from .models import UploadedFile, Deployment
-from .forms import FileUploadForm, CustomUserCreationForm
+from ..serializers import UserSerializer, FileUploadSerializer, DeploymentSerializer
+from ..models import UploadedFile, Deployment
+from ..forms import FileUploadForm, CustomUserCreationForm
 from django.contrib.auth import get_user_model, authenticate, login, logout
 from django.urls import reverse_lazy
 from django.views.generic.edit import CreateView
 from django.utils.decorators import method_decorator
 from django.views import View
 from django.http import JsonResponse
-from .tasks import deploy_chat_app
+from ..tasks import deploy_chat_app
 
 class CreateUserView(generics.CreateAPIView):
     model = get_user_model()
@@ -65,6 +65,8 @@ def delete_file(request, file_id):
 @login_required
 def library_view(request):
     files = UploadedFile.objects.filter(user=request.user)
+    for file in files:
+        file.deployed = Deployment.objects.filter(config_file=file, user=request.user).exists()
     return render(request, 'library.html', {'files': files})
 
 @login_required
@@ -109,3 +111,11 @@ def deployment_status_view(request, task_id):
 def deployments_view(request):
     deployments = Deployment.objects.filter(user=request.user)
     return render(request, 'deployments.html', {'deployments': deployments})
+
+@login_required
+def delete_deployment(request, deployment_id):
+    if request.method == 'POST':
+        deployment = get_object_or_404(Deployment, id=deployment_id, user=request.user)
+        deployment.delete()
+        return JsonResponse({'success': True})
+    return JsonResponse({'success': False}, status=400)

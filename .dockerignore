@@ -22,3 +22,5 @@ coverage.xml
 .mypy_cache
 .pytest_cache
 .hypothesis
+dev_user_uploads/
+pytest_cache/

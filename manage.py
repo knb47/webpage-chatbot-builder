@@ -1,17 +1,24 @@
 #!/usr/bin/env python
-"""Django's command-line utility for administrative tasks."""
 #!/usr/bin/env python
 import os
 import sys
 from dotenv import load_dotenv
 
 def main():
+    # Determine which environment file to load
+    print(f"DJANGO_ENV: {os.environ.get('DJANGO_ENV')}")
     env_file = '.env.prod' if os.environ.get('DJANGO_ENV') == 'production' else '.env.dev'
     load_dotenv(env_file)
     
-    os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings')
+    # Set the appropriate settings module
+    if os.environ.get('DJANGO_ENV') == 'production':
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings.production')
+    else:
+        os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings.development')
+    
     try:
         from django.core.management import execute_from_command_line
+        from django.conf import settings
     except ImportError as exc:
         raise ImportError(
             "Couldn't import Django. Are you sure it's installed and "

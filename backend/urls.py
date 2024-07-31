@@ -14,10 +14,18 @@ Including another URLconf
     1. Import the include() function: from django.urls import include, path
     2. Add a URL to urlpatterns:  path('blog/', include('blog.urls'))
 """
+
 from django.contrib import admin
 from django.urls import path, include
+from django.conf import settings
 from django.contrib.auth import views as auth_views
-from backend.accounts.views import home_view, custom_logout
+
+# Conditional import based on environment
+print(f"settings.DEBUG: {settings.DEBUG}")
+if settings.DEBUG:
+    from backend.accounts.views import mock_views as views
+else:
+    from backend.accounts.views import prod_views as views
 
 urlpatterns = [
     path('admin/', admin.site.urls),
@@ -27,12 +35,11 @@ urlpatterns = [
     
     # Authentication views
     path('login/', auth_views.LoginView.as_view(template_name='login.html'), name='login'),
-    path('accounts/login/', auth_views.LoginView.as_view(template_name='login.html'), name='login'),  # Add this line
-    path('logout/', custom_logout, name='logout'),
+    path('logout/', views.custom_logout, name='logout'),
     
     # Home page
-    path('', home_view, name='home'),
+    path('', views.home_view, name='home'),
     
     # Include other account-related URLs
-    path('', include('backend.accounts.urls')),  # Changed from 'accounts/' to ''
+    path('account/', include('backend.accounts.urls')),
 ]

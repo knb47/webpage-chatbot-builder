@@ -1,9 +1,17 @@
-# ./backend/accounts/urls.py
-
-# backend/accounts/urls.py
-
 from django.urls import path
-from .views import FileUploadView, FileListView, library_view, CreateUserView, SignUpView, delete_file, deploy_view, deployment_status_view, deployments_view
+from django.conf import settings
+
+# Conditional import based on environment
+if settings.DEBUG:
+    from .views.mock_views import (
+        FileUploadView, FileListView, library_view, CreateUserView, SignUpView,
+        delete_file_view as delete_file, deploy_view, deployment_status_view, deployments_view, delete_deployment_view as delete_deployment
+    )
+else:
+    from .views.prod_views import (
+        FileUploadView, FileListView, library_view, CreateUserView, SignUpView,
+        delete_file, deploy_view, deployment_status_view, deployments_view, delete_deployment
+    )
 
 urlpatterns = [
     # API routes
@@ -19,4 +27,5 @@ urlpatterns = [
     path('signup/', SignUpView.as_view(), name='signup'),
     path('upload/', FileUploadView.as_view(), name='file-upload'),
     path('delete-file/<int:file_id>/', delete_file, name='delete_file'),
+    path('delete-deployment/<int:deployment_id>/', delete_deployment, name='delete_deployment')
 ]

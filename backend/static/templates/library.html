@@ -1,0 +1,162 @@
+{% extends 'base.html' %}
+
+{% block title %}Library{% endblock %}
+
+{% block content %}
+<h1 class="text-2xl font-bold mb-4">Your Uploaded Files</h1>
+<ul id="file-list" class="space-y-4">
+    {% for file in files %}
+        <li id="file-{{ file.id }}" class="border rounded-lg p-4 shadow-lg bg-white">
+            <div class="flex justify-between items-center">
+                <div>
+                    <p class="font-semibold">{{ file.file.name }}</p>
+                    {% if file.deployed %}
+                        <p class="text-sm text-green-600 mt-2">This configuration is currently deployed.</p>
+                    {% endif %}
+                </div>
+                <div class="flex space-x-2">
+                    <button class="btn btn-danger btn-sm delete-file" data-file-id="{{ file.id }}">Delete</button>
+                    <button class="btn btn-primary btn-sm deploy-file" data-file-id="{{ file.id }}" {% if file.deployed %}data-deployed="true"{% endif %}>Deploy</button>
+                </div>
+            </div>
+        </li>
+    {% empty %}
+        <li class="text-gray-500">No files uploaded.</li>
+    {% endfor %}
+</ul>
+
+<div id="deployment-status" class="mt-4 text-gray-700"></div>
+
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    document.getElementById('file-list').addEventListener('click', function(event) {
+        if (event.target.classList.contains('delete-file')) {
+            const fileId = event.target.getAttribute('data-file-id');
+            handleDelete(fileId);
+        }
+        if (event.target.classList.contains('deploy-file')) {
+            const fileId = event.target.getAttribute('data-file-id');
+            handleDeploy(fileId);
+        }
+    });
+});
+
+function handleDelete(fileId) {
+    if (confirm('Are you sure you want to delete this file?')) {
+        const button = document.querySelector(`[data-file-id="${fileId}"]`);
+        button.disabled = true;
+        button.textContent = 'Deleting...';
+        
+        deleteFile(fileId)
+            .then(success => {
+                if (success) {
+                    const listItem = document.getElementById(`file-${fileId}`);
+                    listItem.remove();
+                    if (document.getElementById('file-list').children.length === 0) {
+                        document.getElementById('file-list').innerHTML = '<li class="text-gray-500">No files uploaded.</li>';
+                    }
+                } else {
+                    alert('Failed to delete file');
+                    button.disabled = false;
+                    button.textContent = 'Delete';
+                }
+            })
+            .catch(error => {
+                console.error('Error:', error);
+                alert('An error occurred while deleting the file');
+                button.disabled = false;
+                button.textContent = 'Delete';
+            });
+    }
+}
+
+function handleDeploy(fileId) {
+    const button = document.querySelector(`[data-file-id="${fileId}"]`);
+    const isDeployed = button.getAttribute('data-deployed') === 'true';
+
+    if (isDeployed) {
+        if (!confirm('This configuration has already been deployed. Are you sure you want to redeploy this file? If you would like to keep your old deployment, please change this configuration\'s file name to something different. If you believe this is a mistake, consider checking your current deployments for a deployment with the same name.')) {
+            return;
+        }
+    }
+
+    button.disabled = true;
+    button.innerHTML = '<span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Deploying...';
+
+    fetch(`/account/deploy/${fileId}/`, {
+        method: 'POST',
+        headers: {
+            'X-CSRFToken': '{{ csrf_token }}'
+        }
+    }).then(response => response.json())
+      .then(data => {
+          const taskId = data.task_id;
+          checkDeploymentStatus(taskId);
+      })
+      .catch(error => {
+          console.error('Error:', error);
+          alert('An error occurred while deploying the chat app');
+          button.disabled = false;
+          button.textContent = 'Deploy';
+      });
+}
+
+function checkDeploymentStatus(taskId) {
+    fetch(`/account/deployment_status/${taskId}/`)
+        .then(response => response.json())
+        .then(data => {
+            if (data.status === 'pending') {
+                document.getElementById('deployment-status').innerHTML = 'Deployment is in progress...';
+                setTimeout(() => checkDeploymentStatus(taskId), 5000);
+            } else if (data.status === 'completed') {
+                document.getElementById('deployment-status').innerHTML = 'Deployment completed! Endpoint: ' + data.endpoint;
+                showNotification('Deployment completed successfully!');
+                resetDeployButtons();
+            } else {
+                document.getElementById('deployment-status').innerHTML = 'Deployment failed: ' + data.error;
+                resetDeployButtons();
+            }
+        })
+        .catch(error => {
+            console.error('Error:', error);
+            document.getElementById('deployment-status').innerHTML = 'An error occurred while checking deployment status';
+            resetDeployButtons();
+        });
+}
+
+function resetDeployButtons() {
+    document.querySelectorAll('.deploy-file').forEach(button => {
+        button.disabled = false;
+        button.textContent = 'Deploy';
+    });
+}
+
+function showNotification(message) {
+    if (Notification.permission === 'granted') {
+        new Notification(message);
+    } else if (Notification.permission !== 'denied') {
+        Notification.requestPermission().then(permission => {
+            if (permission === 'granted') {
+                new Notification(message);
+            }
+        });
+    }
+}
+
+async function deleteFile(fileId) {
+    try {
+        const response = await fetch(`/account/delete-file/${fileId}/`, {
+            method: 'POST',
+            headers: {
+                'X-CSRFToken': '{{ csrf_token }}'
+            }
+        });
+        const data = await response.json();
+        return data.success;
+    } catch (error) {
+        console.error('Error:', error);
+        return false;
+    }
+}
+</script>
+{% endblock %}
