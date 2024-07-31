@@ -8,3 +8,4 @@ dev_tools
 db.sqlite3
 user-backend/
 app_skeleton_code/
+.DS_Store
