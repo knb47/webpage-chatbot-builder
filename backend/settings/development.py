@@ -18,6 +18,7 @@ MEDIA_URL = '/dev_user_uploads/'
 MEDIA_ROOT = BASE_DIR.parent / 'dev_user_uploads'
 
 # Logging settings for development
+USE_WATCHMAN = False
 LOGGING = {
     'version': 1,
     'disable_existing_loggers': False,
@@ -28,6 +29,23 @@ LOGGING = {
     },
     'root': {
         'handlers': ['console'],
-        'level': 'DEBUG',
+        'level': 'WARNING',
+    },
+    'loggers': {
+        'django': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'backend': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+        'accounts': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
     },
 }
