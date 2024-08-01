@@ -1,4 +1,3 @@
-# Use an official Python runtime as a parent image
 FROM python:3.11
 
 # Set environment variables
@@ -26,12 +25,6 @@ RUN poetry config virtualenvs.create false \
 
 # Copy project
 COPY . /app/
-
-# Copy the start script
-COPY scripts/start.sh /app/scripts/start.sh
-
-# Make the start script executable
-RUN chmod +x /app/scripts/start.sh
 
 # Create a non-root user
 RUN useradd -m myuser

@@ -9,10 +9,17 @@ import os
 
 logger = logging.getLogger(__name__)
 
+# backend/accounts/tasks.py
+
+# backend/accounts/tasks.py
+
 @shared_task(bind=True)
-def deploy_chat_app(self, user_id, config_file_name):
+def deploy_chat_app(self, user_id, relative_file_path):
     try:
-        uploaded_file = UploadedFile.objects.get(file=config_file_name, user_id=user_id)
+        logger.info(f"Searching for UploadedFile with path: {relative_file_path} for user: {user_id}")
+
+        # Query using the relative file path
+        uploaded_file = UploadedFile.objects.get(file=relative_file_path, user_id=user_id)
 
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
             for chunk in uploaded_file.file.chunks():
@@ -22,14 +29,34 @@ def deploy_chat_app(self, user_id, config_file_name):
         result = deploy_user_app(user_id, temp_file_path)
 
         if result['status'] == 'completed':
-            Deployment.objects.create(
+            # Extract bot_name from result or set a default if necessary
+            bot_name = result.get('bot_name', f'nameless_bot_{user_id}')
+
+            # Create a Deployment object with correct fields
+            deployment = Deployment.objects.create(
                 user_id=user_id,
-                config_file=uploaded_file,
-                endpoint=result['endpoint']
+                config_file_name=uploaded_file.file.name,  # Store the relative file path
+                chatbot_name=bot_name,
+                endpoint=result['endpoint'],
+                status='active'  # Assuming 'active' is the intended status
             )
+            print(f"Deployment created with ID: {deployment.id}")
+            print(f"Deployment created with endpoint: {deployment.endpoint}")
+            print(f"Deployment created with file name: {uploaded_file.file_name}") 
+
+            return {
+                'status': 'completed',
+                'endpoint': result['endpoint'],
+                'file_path': uploaded_file.file.name,  # Include relative file path
+                'file_name': uploaded_file.file_name,  # Include the actual file name
+                'deployment_id': deployment.id  # Include the deployment ID
+            }
         os.remove(temp_file_path)
-        
-        return result
+
+        return {'status': 'failed', 'error': 'Deployment could not be completed.'}
+    except UploadedFile.DoesNotExist:
+        logger.error(f"UploadedFile with path {relative_file_path} and user {user_id} does not exist.")
+        return {'status': 'failed', 'error': 'UploadedFile matching query does not exist.'}
     except Exception as e:
         logger.error(f"Error deploying chat app for user {user_id}: {e}")
         return {'status': 'failed', 'error': str(e)}

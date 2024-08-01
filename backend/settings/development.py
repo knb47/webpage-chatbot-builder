@@ -29,23 +29,19 @@ LOGGING = {
     },
     'root': {
         'handlers': ['console'],
-        'level': 'WARNING',
+        'level': 'WARNING',  # Capture all log messages
     },
     'loggers': {
-        'django': {
-            'handlers': ['console'],
-            'level': 'WARNING',
-            'propagate': False,
-        },
         'backend': {
             'handlers': ['console'],
-            'level': 'WARNING',
+            'level': 'DEBUG',  # Capture DEBUG and higher-level messages from your code
             'propagate': False,
         },
         'accounts': {
             'handlers': ['console'],
-            'level': 'WARNING',
+            'level': 'DEBUG',  # Ensure all messages from your app are captured
             'propagate': False,
         },
-    },
+    }
 }
+

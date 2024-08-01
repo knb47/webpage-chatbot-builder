@@ -4,7 +4,7 @@ from celery import Celery
 import logging
 
 # Set the default Django settings module for the 'celery' program.
-os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings')
+os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings.production')
 
 app = Celery('backend')
 

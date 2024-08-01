@@ -8,7 +8,7 @@ python manage.py makemigrations
 python manage.py migrate
 
 # Bundle static assets
-python manage.py collectstatic
+python manage.py collectstatic --noinput
 
 if [ "$DJANGO_ENV" = "development" ]; then
     echo "Starting Django development server"
