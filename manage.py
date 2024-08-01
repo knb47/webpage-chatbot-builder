@@ -13,8 +13,10 @@ def main():
     # Set the appropriate settings module
     if os.environ.get('DJANGO_ENV') == 'production':
         os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings.production')
+        print(f"Using production settings: live views, no debug, etc.")
     else:
         os.environ.setdefault('DJANGO_SETTINGS_MODULE', 'backend.settings.development')
+        print(f"Using development settings: mock views, debug, etc.")
     
     try:
         from django.core.management import execute_from_command_line

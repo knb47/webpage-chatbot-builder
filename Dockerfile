@@ -31,4 +31,4 @@ RUN useradd -m myuser
 USER myuser
 
 # Run the start script
-CMD ["/app/scripts/start.sh"]
+CMD ["/app/scripts/_start.sh"]
