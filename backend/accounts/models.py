@@ -31,10 +31,12 @@ class UploadedFile(models.Model):
 class Deployment(models.Model):
     STATUS_CHOICES = [
         ('active', 'Active'),
+        ('inactive', 'Inactive'),
         ('marked_for_deletion', 'Marked for Deletion'),
     ]
     user = models.ForeignKey(get_user_model(), null=True, on_delete=models.SET_NULL)
     chatbot_name = models.CharField(max_length=255)
+    config_file_path = models.CharField(max_length=255)
     config_file_name = models.CharField(max_length=255)
     endpoint = models.URLField()
     deployed_at = models.DateTimeField(auto_now_add=True)

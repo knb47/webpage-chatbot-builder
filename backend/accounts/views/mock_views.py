@@ -52,6 +52,12 @@ def teardown_view(request, deployment_id):
     # Simulate fetching a deployment object (mock)
     deployment = get_object_or_404(Deployment, id=deployment_id, user=request.user)
 
+    if deployment.status == 'inactive':
+        return JsonResponse({
+            'status': 'failed',
+            'message': 'Deployment is already inactive.'
+        })
+
     # Mock a teardown operation
     result = mock_teardown_operation(user_id=request.user.id, endpoint=deployment.endpoint)
 
@@ -69,10 +75,25 @@ def teardown_view(request, deployment_id):
 def teardown_status_view(request, task_id):
     # Simulate async task status check
     time.sleep(3)  # Delay to simulate processing time
-    
+
+    task_state = 'SUCCESS'
+    if task_state == 'SUCCESS':
+        # Mock response to simulate completed teardown
+        result = {
+            'status': 'completed',
+            'endpoint': 'mock_endpoint',
+            'message': 'Teardown completed successfully.'
+        }
+
+    if result.get('status') == 'completed':
+        # mark deployment object as inactive
+        deployment = Deployment.objects.get(user=request.user, config_file_name='chat_full.yaml')
+        deployment.status = 'inactive'
+        deployment.save()
+
     # Mock response to simulate completed teardown
     return JsonResponse({
         'status': 'completed',
-        'endpoint': 'dummy_endpoint',  # You can adjust the mock data as needed
+        'endpoint': 'mock_endpoint',
         'message': 'Teardown completed successfully.'
     })

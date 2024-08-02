@@ -23,5 +23,5 @@ urlpatterns = [
   path('delete-file/<int:file_id>/', views.delete_file, name='delete_file'),
   path('delete-deployment/<int:deployment_id>/', views.delete_deployment, name='delete_deployment'),
   path('teardown/<int:deployment_id>/', views.teardown_view, name='teardown'),
-  path('teardown-status/<str:task_id>/', views.teardown_status_view, name='teardown_status'),
+  path('teardown_status/<str:task_id>/', views.teardown_status_view, name='teardown_status'),
 ]

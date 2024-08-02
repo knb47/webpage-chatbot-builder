@@ -83,7 +83,7 @@ def delete_file(request, file_id):
 def library_view(request):
     files = UploadedFile.objects.filter(user=request.user)
     for file in files:
-        file.deployed = Deployment.objects.filter(config_file_name=file.file_name, user=request.user).exists()
+        file.deployed = Deployment.objects.filter(config_file_path=file.file_name, user=request.user).exists()
     return render(request, 'library.html', {'files': files})
 
 @login_required

@@ -36,7 +36,7 @@ def deploy_chat_app(self, user_id, relative_file_path):
             # Create a Deployment object with correct fields
             deployment = Deployment.objects.create(
                 user_id=user_id,
-                config_file_name=uploaded_file.file.name,  # Store the relative file path
+                config_file_path=uploaded_file.file.name,  # Store the relative file path
                 chatbot_name=bot_name,
                 endpoint=result['endpoint'],
                 status='active'  # Assuming 'active' is the intended status

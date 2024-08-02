@@ -28,7 +28,8 @@ def mock_deploy_chat_app(user_id, relative_file_path):
         # Create a mock Deployment object
         deployment = Deployment.objects.create(
             user_id=user_id,
-            config_file_name=uploaded_file.file.name,  # Store the relative file path
+            config_file_path=uploaded_file.file.name,  # Store the relative file path
+            config_file_name=uploaded_file.file_name,
             chatbot_name=bot_name,
             endpoint=mock_endpoint,
             status='active'  # Assuming 'active' is the intended status
