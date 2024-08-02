@@ -8,13 +8,15 @@ import logging
 import time
 from botocore.exceptions import ClientError
 from tenacity import retry, stop_after_attempt, wait_exponential
+from backend.accounts.models import Deployment
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
 current_script_dir = os.path.dirname(os.path.abspath(__file__))
-deployment_package_path = os.path.join(current_script_dir, "deployment_package.zip")
+parent_dir = os.path.dirname(current_script_dir)
+deployment_package_path = os.path.join(parent_dir, "deployment_package.zip")
 
 def wait_for_update_to_complete(lambda_client, function_name):
     """Polls the Lambda function's status and waits for any ongoing updates to complete."""
@@ -30,6 +32,7 @@ def wait_for_update_to_complete(lambda_client, function_name):
         time.sleep(10)  # Polling interval
         attempts += 1
     raise TimeoutError("Max polling attempts reached. Lambda function update did not complete in time.")
+
 
 @retry(stop=stop_after_attempt(3), wait=wait_exponential(multiplier=1, min=4, max=10))
 def update_lambda_function(lambda_client, function_name, zip_file, environment_vars):
@@ -55,13 +58,6 @@ def deploy_user_app(self, user_id, config_file_path):
         lambda_role = os.environ.get('LAMBDA_EXECUTION_ROLE')
         if not aws_region or not lambda_role:
             raise ValueError("AWS_REGION or LAMBDA_EXECUTION_ROLE environment variable is not set.")
-
-        if environment == 'development':
-            return {
-                'status': 'completed',
-                'endpoint': f"https://example-api-id.execute-api.{aws_region}.amazonaws.com/prod/user/{user_id}/nameless_bot/chat",
-                'config_file_path': config_file_path
-            }
 
         # Create a temporary working directory
         user_dir = f"/tmp/{user_id}"
@@ -94,7 +90,10 @@ def deploy_user_app(self, user_id, config_file_path):
         with open(temp_package_path, 'rb') as f:
             lambda_zip = f.read()
 
-        function_name = f"user_app_{user_id}_{bot_name}"
+        # Step 5: Create or update Lambda function
+        sanitize_name = lambda bot_name: ''.join(c for c in bot_name if c.isalnum() or c in '-_') # adhere to aws lambda naming restrictions
+        bot_name_clean = sanitize_name(bot_name)
+        function_name = f"user-app-{user_id}-{bot_name_clean}"
 
         lambda_client = boto3.client('lambda', region_name=aws_region)
         api_client = boto3.client('apigateway', region_name=aws_region)

@@ -13,27 +13,36 @@ class PathAndRename:
     def __call__(self, instance, filename):
         return f'{self.path}/user_{instance.user.id}/{filename}'
 
+# Define custom user model
 class CustomUser(AbstractUser):
     pass
 
+# Model for uploaded files
 class UploadedFile(models.Model):
     user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE)
-    file = models.FileField(upload_to=PathAndRename('uploads'))
+    file = models.FileField(upload_to='uploads/')
     file_name = models.CharField(max_length=255)
     uploaded_at = models.DateTimeField(auto_now_add=True)
 
+    def __str__(self):
+        return self.file_name
+
+# Model for deployments
 class Deployment(models.Model):
     STATUS_CHOICES = [
         ('active', 'Active'),
         ('marked_for_deletion', 'Marked for Deletion'),
     ]
-
     user = models.ForeignKey(get_user_model(), null=True, on_delete=models.SET_NULL)
-    config_file_name = models.CharField(max_length=255)
     chatbot_name = models.CharField(max_length=255)
+    config_file_name = models.CharField(max_length=255)
     endpoint = models.URLField()
     deployed_at = models.DateTimeField(auto_now_add=True)
     status = models.CharField(max_length=20, choices=STATUS_CHOICES, default='active')
+    resource_name = models.CharField(max_length=511, blank=True, editable=False)
+
+    def __str__(self):
+        return self.chatbot_name
 
 class EmailLog(models.Model):
     recipient = models.EmailField()

@@ -51,3 +51,13 @@ def mock_deploy_chat_app(user_id, relative_file_path):
     except Exception as e:
         logger.error(f"Mock: Error deploying chat app for user {user_id}: {e}")
         return {'status': 'failed', 'error': str(e)}
+    
+
+def mock_teardown_operation(user_id, endpoint):
+    # Simulate a teardown operation with mock data
+    print(f"Teardown initiated for user {user_id} on endpoint {endpoint}")
+    return {
+        'status': 'pending',  # Start with a 'pending' status
+        'endpoint': endpoint,
+        'message': 'Teardown is in progress...'
+    }

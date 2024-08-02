@@ -2,7 +2,8 @@
 
 from celery import shared_task
 from .models import UploadedFile, Deployment
-from .deployment.deploy import deploy_user_app
+from .deployment.aws_utils.deploy_lambda import deploy_user_app
+from .deployment.aws_utils.teardown_lambda import teardown_user_app
 import logging
 import tempfile
 import os
@@ -40,9 +41,6 @@ def deploy_chat_app(self, user_id, relative_file_path):
                 endpoint=result['endpoint'],
                 status='active'  # Assuming 'active' is the intended status
             )
-            print(f"Deployment created with ID: {deployment.id}")
-            print(f"Deployment created with endpoint: {deployment.endpoint}")
-            print(f"Deployment created with file name: {uploaded_file.file_name}") 
 
             return {
                 'status': 'completed',
@@ -60,6 +58,20 @@ def deploy_chat_app(self, user_id, relative_file_path):
     except Exception as e:
         logger.error(f"Error deploying chat app for user {user_id}: {e}")
         return {'status': 'failed', 'error': str(e)}
+    
+@shared_task(bind=True)
+def teardown_chat_app(self, user_id, bot_name):
+    try:
+        logger.info(f"Initiating teardown for user_id: {user_id}, bot_name: {bot_name}")
+        result = teardown_user_app(user_id, bot_name)
+        logger.info(f"Teardown result: {result}")
+        return result
+    except Exception as e:
+        logger.error(f"Error during teardown: {str(e)}")
+        return {
+            'status': 'failed',
+            'error': str(e)
+        }
 
 @shared_task
 def test_task():

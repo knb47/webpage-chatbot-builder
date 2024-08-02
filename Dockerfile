@@ -26,6 +26,9 @@ RUN poetry config virtualenvs.create false \
 # Copy project
 COPY . /app/
 
+# Set script permissions
+RUN chmod +x /app/scripts/_start.sh
+
 # Create a non-root user
 RUN useradd -m myuser
 USER myuser

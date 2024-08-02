@@ -1,7 +1,7 @@
 from .base_views import *
 
 # Celery / long-running tasks for deployment are defined here for production
-from ..tasks import deploy_chat_app
+from ..tasks import deploy_chat_app, teardown_chat_app
 
 @login_required
 def deploy_view(request, file_id):
@@ -29,18 +29,26 @@ def deployment_status_view(request, task_id):
     else:
         return JsonResponse({'status': 'pending'})
     
+
 @login_required
-def deployment_status_view(request, task_id):
-    task = deploy_chat_app.AsyncResult(task_id)
+def teardown_view(request, deployment_id):
+    # Assume deployment_id is used to fetch necessary info from the database
+    # You need to map deployment_id to user_id and bot_name
+    # This could be through another model that tracks deployments
+    deployment = get_object_or_404(Deployment, user=request.user, id=deployment_id)
+    # Start the teardown process
+    task = teardown_chat_app.apply_async(args=[request.user.id, deployment])  # Pass the deployment ID to the task
+    return JsonResponse({'task_id': task.id})
+
+@login_required
+def teardown_status_view(request, task_id):
+    task = teardown_chat_app.AsyncResult(task_id)
     if task.state == 'SUCCESS':
         result = task.result
         if result.get('status') == 'completed':
             return JsonResponse({
                 'status': 'completed',
-                'endpoint': result.get('endpoint'),
-                'file_path': result.get('file_path'),  # Retrieve the relative file path directly from the task result
-                'file_name': result.get('file_name'),  # Retrieve the file name directly from the task result
-                'deployment_id': result.get('deployment_id')  # Retrieve the deployment ID directly from the task result
+                'message': 'Teardown successful'
             })
         else:
             return JsonResponse({'status': 'failed', 'error': result.get('error', 'Unknown error')})

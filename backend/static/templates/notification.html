@@ -1,0 +1,86 @@
+<!-- templates/notification.html -->
+<div id="notification" class="notification hidden" role="alert">
+  <div class="flex items-center justify-between">
+    <span id="notification-message" class="notification-text"></span>
+    <button type="button" class="close-button" onclick="hideNotification()">
+      <span class="sr-only">Close</span>
+      <svg class="w-5 h-5" fill="currentColor" viewBox="0 0 20 20">
+        <path fill-rule="evenodd" d="M4.293 4.293a1 1 0 011.414 0L10 8.586l4.293-4.293a1 1 0 111.414 1.414L11.414 10l4.293 4.293a1 1 0 01-1.414 1.414L10 11.414l-4.293 4.293a1 1 0 01-1.414-1.414L8.586 10 4.293 5.707a1 1 0 010-1.414z" clip-rule="evenodd"></path>
+      </svg>
+    </button>
+  </div>
+</div>
+
+<script>
+function showNotification(message, type = 'success') {
+    const notification = document.getElementById('notification');
+    const notificationMessage = document.getElementById('notification-message');
+
+    // Update message and styles based on the type
+    notificationMessage.innerHTML = message;
+    if (type === 'success') {
+        notification.classList.remove('bg-red-100', 'border-red-400', 'text-red-700');
+        notification.classList.add('bg-green-100', 'border-green-400', 'text-green-700');
+    } else if (type === 'error') {
+        notification.classList.remove('bg-green-100', 'border-green-400', 'text-green-700');
+        notification.classList.add('bg-red-100', 'border-red-400', 'text-red-700');
+    }
+
+    notification.style.display = 'block';
+    setTimeout(hideNotification, 5000);
+}
+
+function hideNotification() {
+    const notification = document.getElementById('notification');
+    notification.style.display = 'none';
+}
+</script>
+
+<style>
+.notification {
+    position: fixed;
+    top: 20px;
+    left: 50%;
+    transform: translateX(-50%);
+    max-width: 90%; /* Make the notification wider */
+    min-height: 50px; /* Make the notification shorter */
+    padding: 10px 20px; /* Adjust padding for better appearance */
+    font-size: 14px; /* Adjust font size for a single line */
+    border-radius: 5px;
+    box-shadow: 0 2px 5px rgba(0, 0, 0, 0.2);
+    z-index: 1000;
+    display: none;
+}
+
+.text-green-700 {
+    color: #155724;
+}
+
+.text-green-700:hover {
+    color: #0c4d1d;
+}
+
+.bg-green-100 {
+    background-color: #d4edda;
+}
+
+.border-green-400 {
+    border-color: #c3e6cb;
+}
+
+.text-red-700 {
+    color: #721c24;
+}
+
+.text-red-700:hover {
+    color: #491314;
+}
+
+.bg-red-100 {
+    background-color: #f8d7da;
+}
+
+.border-red-400 {
+    border-color: #f5c6cb;
+}
+</style>
