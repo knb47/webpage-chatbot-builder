@@ -19,15 +19,17 @@
           <div class="flex justify-between items-center">
               <div>
                   <p class="font-semibold">Endpoint: {{ deployment.endpoint }}</p>
-                  <p>Status: {{ deployment.status }}</p>
+                  <p role="status-text">Status: {{ deployment.status }}</p>
               </div>
               <div class="flex space-x-2">
-                  <!-- End (Teardown) buttons -->
+                  <!-- Conditionally display 'End' button only if the deployment is active -->
+                  {% if deployment.status == 'active' %}
                   <button class="btn btn-secondary btn-sm teardown-button" data-deployment-id="{{ deployment.id }}" data-deployment-endpoint="{{ deployment.endpoint }}">End</button>
                   <button class="btn btn-secondary btn-sm teardown-loading-button" data-deployment-id="{{ deployment.id }}" style="display: none;">
                       <span class="spinner-border spinner-border-sm" role="status" aria-hidden="true"></span> Ending...
                   </button>
-                  <!-- Delete button, only shown if deployment is active -->
+                  {% endif %}
+                  <!-- Conditionally display 'Delete' button only if the deployment is inactive -->
                   {% if deployment.status == 'inactive' %}
                   <button class="btn btn-danger btn-sm delete-deployment" data-deployment-id="{{ deployment.id }}" data-deployment-endpoint="{{ deployment.endpoint }}">Delete</button>
                   {% endif %}
@@ -53,7 +55,7 @@ document.addEventListener('DOMContentLoaded', function() {
         if (target.classList.contains('delete-deployment') || target.classList.contains('teardown-button')) {
             const deploymentId = target.getAttribute('data-deployment-id');
             const deploymentEndpoint = target.getAttribute('data-deployment-endpoint');
-            if (target.classList.contains('delete-deployment') && target.classList.contains('btn-danger')) {
+            if (target.classList.contains('delete-deployment')) {
                 showConfirmationModal('Are you sure you want to delete this deployment?', deploymentEndpoint, () => handleDelete(deploymentId));
             } else if (target.classList.contains('teardown-button')) {
                 showConfirmationModal(`Are you sure you want to end this deployment for ${deploymentEndpoint}?`, deploymentEndpoint, () => handleTeardown(deploymentId));

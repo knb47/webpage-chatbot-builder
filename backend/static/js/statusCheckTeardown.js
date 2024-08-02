@@ -23,13 +23,27 @@ function checkStatus(taskId, deploymentId, type) {
 function handleCompletion(data, deploymentId, type) {
   const deploymentSelector = `deployment-${deploymentId}`;
   const item = document.getElementById(deploymentSelector);
+  const statusText = item.querySelector('p[role="status-text"]');
   const endButton = item.querySelector('.teardown-button');
   const loadingButton = item.querySelector('.teardown-loading-button');
 
-  endButton.textContent = 'Ended';
-  endButton.disabled = true;
-  endButton.classList.add('btn-light');
   loadingButton.style.display = 'none';
+  
+  // Update status text and show delete button only
+  statusText.textContent = `Status: ${data.deployment_status}`;
+  endButton.style.display = 'none'; // Hide end button if still visible
+
+  const deleteButton = document.createElement('button');
+  deleteButton.className = 'btn btn-danger btn-sm delete-deployment';
+  deleteButton.textContent = 'Delete';
+  deleteButton.onclick = function() {
+      handleDelete(deploymentId);
+  };
+
+  // Append only if a delete button does not already exist
+  if (!item.querySelector('.delete-deployment')) {
+      item.querySelector('.flex.space-x-2').appendChild(deleteButton);
+  }
 
   showNotification(`Teardown for '${data.endpoint}' completed successfully!`, 'success');
 }

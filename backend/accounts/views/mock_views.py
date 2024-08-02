@@ -94,6 +94,7 @@ def teardown_status_view(request, task_id):
     # Mock response to simulate completed teardown
     return JsonResponse({
         'status': 'completed',
+        'deployment_status': deployment.status,
         'endpoint': 'mock_endpoint',
         'message': 'Teardown completed successfully.'
     })
