@@ -94,8 +94,10 @@ def teardown_user_app(user_id, deployment):
 
         return {
             'status': 'completed',
+            'deployment_status': deployment.status,
             'endpoint': deployment.endpoint,
-            'message': 'Teardown successful'}
+            'message': 'Teardown successful'
+            }
     except Exception as e:
         logger.error(f"Error during teardown: {str(e)}")
         return {
