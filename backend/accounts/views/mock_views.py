@@ -3,8 +3,12 @@
 from .base_views import *
 from ..tasks_mock import mock_deploy_chat_app, mock_teardown_operation
 import time
+from django.conf import settings
+from django.db import transaction
 
+settings.deployment_failed = False  # Initialize the deployment_failed variable
 
+# simulate celery task status
 @login_required
 def deploy_view(request, file_id):
     config_file = get_object_or_404(UploadedFile, id=file_id, user=request.user)
@@ -13,6 +17,9 @@ def deploy_view(request, file_id):
     result = mock_deploy_chat_app(user_id=request.user.id, relative_file_path=config_file.file.name)
 
     # Mock task result without async
+    if result.get('status') == 'failed':
+        settings.deployment_failed = True  # Set the deployment_failed variable to True
+        return JsonResponse({'status': 'failed', 'error': result.get('error')})
     task_id = 'mock-task-id'  # Simulate a task ID
     response = {
         'task_id': task_id,
@@ -29,6 +36,13 @@ def deploy_view(request, file_id):
 def deployment_status_view(request, task_id):
     # simulate async task status check
     time.sleep(3)
+
+    if settings.deployment_failed:
+        settings.deployment_failed = False
+        return JsonResponse({
+            'status': 'failed',
+            'error': 'Already deployed.'
+        })
     
     return JsonResponse({
         'status': 'completed',
@@ -87,9 +101,13 @@ def teardown_status_view(request, task_id):
 
     if result.get('status') == 'completed':
         # mark deployment object as inactive
-        deployment = Deployment.objects.get(user=request.user, config_file_name='chat_full.yaml')
-        deployment.status = 'inactive'
-        deployment.save()
+        with transaction.atomic():
+            deployment = Deployment.objects.get(user=request.user, config_file_name='chat_full.yaml')
+            deployment.status = 'inactive'
+            deployment.save()
+            if deployment.config_file:
+                deployment.config_file.has_deployment = False
+                deployment.config_file.save()
 
     # Mock response to simulate completed teardown
     return JsonResponse({

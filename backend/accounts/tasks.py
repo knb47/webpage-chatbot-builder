@@ -1,6 +1,8 @@
 # backend/accounts/tasks.py
 
 from celery import shared_task
+from django.db import transaction
+from django.core.exceptions import ObjectDoesNotExist
 from .models import UploadedFile, Deployment
 from .deployment.aws_utils.deploy_lambda import deploy_user_app
 from .deployment.aws_utils.teardown_lambda import teardown_user_app
@@ -21,6 +23,15 @@ def deploy_chat_app(self, user_id, relative_file_path):
         # Query using the relative file path
         uploaded_file = UploadedFile.objects.get(file=relative_file_path, user_id=user_id)
 
+        if uploaded_file.has_deployment:
+            logger.info("Uploaded file has already been deployed.")
+            return {'status': 'failed', 'error': 'Uploaded file has already been deployed.'}
+        
+        # check if file name already exists. Get deployments by user, then check if any of them have the same file name
+        if Deployment.objects.filter(user_id=user_id, config_file_name=uploaded_file.file_name).exists():
+            logger.info("A deployment with the same file name already exists.")
+            return {'status': 'failed', 'error': 'A deployment with the same file name already exists.'}
+
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
             for chunk in uploaded_file.file.chunks():
                 temp_file.write(chunk)
@@ -30,29 +41,38 @@ def deploy_chat_app(self, user_id, relative_file_path):
         os.remove(temp_file_path)
 
         if result['status'] == 'completed':
-            # Extract bot_name from result or set a default if necessary
-            bot_name = result.get('bot_name', f'nameless_bot_{user_id}')
+            try:
+                with transaction.atomic():
+                    uploaded_file.has_deployment = True
+                    uploaded_file.save(update_fields=['has_deployment'])
+                  
+                    # Create a Deployment object with correct fields
+                    deployment = Deployment.objects.create(
+                        user_id=user_id,
+                        resource_name=result['resource_name'],
+                        config_file = uploaded_file,
+                        config_file_path=uploaded_file.file.name,  # Store the relative file path
+                        config_file_name=uploaded_file.file_name,
+                        chatbot_name=result['chatbot_name'],
+                        endpoint=result['endpoint'],
+                        status='active'
+                    )
+                    logger.info(f"Deployment created with resource_name: {deployment.resource_name}")
 
-            # Create a Deployment object with correct fields
-            deployment = Deployment.objects.create(
-                user_id=user_id,
-                resource_name=result['resource_name'],
-                config_file_path=uploaded_file.file.name,  # Store the relative file path
-                config_file_name=uploaded_file.file_name,
-                chatbot_name=result['chatbot_name'],
-                endpoint=result['endpoint'],
-                status='active'
-            )
-            logger.info(f"Deployment created with resource_name: {deployment.resource_name}")
-
-            return {
-                'status': 'completed',
-                'endpoint': result['endpoint'],
-                'file_path': uploaded_file.file.name,  # Include relative file path
-                'file_name': uploaded_file.file_name,  # Include the actual file name
-                'deployment_id': deployment.id  # Include the deployment ID
-            }
-
+                    return {
+                        'status': 'completed',
+                        'endpoint': result['endpoint'],
+                        'file_path': uploaded_file.file.name,  # Include relative file path
+                        'file_name': uploaded_file.file_name,  # Include the actual file name
+                        'deployment_id': deployment.id  # Include the deployment ID
+                    }
+                
+            except ObjectDoesNotExist:
+                logger.error("UploadedFile not found for the specified path and user.")
+                return None
+            except Exception as e:
+                logger.error(f"An error occurred while creating deployment: {str(e)}")
+                return None
         return {'status': 'failed', 'error': 'Deployment could not be completed.'}
     except UploadedFile.DoesNotExist:
         logger.error(f"UploadedFile with path {relative_file_path} and user {user_id} does not exist.")

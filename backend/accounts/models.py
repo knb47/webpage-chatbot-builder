@@ -23,6 +23,7 @@ class UploadedFile(models.Model):
     file = models.FileField(upload_to='uploads/')
     file_name = models.CharField(max_length=255)
     uploaded_at = models.DateTimeField(auto_now_add=True)
+    has_deployment = models.BooleanField(default=False)
 
     def __str__(self):
         return self.file_name
@@ -35,6 +36,7 @@ class Deployment(models.Model):
         ('marked_for_deletion', 'Marked for Deletion'),
     ]
     user = models.ForeignKey(get_user_model(), null=True, on_delete=models.SET_NULL)
+    config_file = models.ForeignKey(UploadedFile, null=True, blank=True, on_delete=models.SET_NULL, related_name='deployments')
     chatbot_name = models.CharField(max_length=255)
     config_file_path = models.CharField(max_length=255)
     config_file_name = models.CharField(max_length=255)

@@ -38,25 +38,25 @@ class FileUploadView(View):
         return render(request, 'upload.html', {'form': form})
 
     def post(self, request):
-        try:
-            logger.debug(f"User {request.user.id} uploading file.")
-        except Exception as e:
-            print(f"Logging failed: {e}")
         form = FileUploadForm(request.POST, request.FILES)
         if form.is_valid():
             file = request.FILES['file']
-            # The relative path is stored automatically by Django's FileField
-            file_path = file.name  # This gives us the relative path as stored
-            file_name = file.name.split('/')[-1]  # Extract the file name from the path
-            logger.debug(f"File path: {file_path}, File name: {file_name}")
+            file_name = request.POST.get('new_file_name', file.name).split('/')[-1]
 
+            # Check if a file with the same name already exists for the user
+            if UploadedFile.objects.filter(user=request.user, file_name=file_name).exists():
+                return JsonResponse({'exists': True, 'file_name': file_name})
+
+            # Save the file if no conflict
             newfile = UploadedFile(file=file, file_name=file_name, user=request.user)
             newfile.save()
 
-            logger.info(f"File uploaded with path: {file_path} and name: {file_name} by user: {request.user.id}")
+            logger.info(f"File uploaded with name: {file_name} by user: {request.user.id}")
 
-            return redirect('library')
+            return JsonResponse({'exists': False, 'redirect_url': '/library'})
+
         return render(request, 'upload.html', {'form': form})
+
 
 class FileListView(generics.ListAPIView):
     serializer_class = FileUploadSerializer

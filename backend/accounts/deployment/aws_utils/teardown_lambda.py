@@ -3,6 +3,7 @@ import os
 import logging
 import time
 from botocore.exceptions import ClientError
+from django.db import transaction
 from tenacity import retry, stop_after_attempt, wait_exponential
 from backend.accounts.models import Deployment
 
@@ -89,9 +90,21 @@ def teardown_user_app(user_id, deployment):
 
         logger.info("Teardown completed successfully.")
 
-        deployment.status = 'inactive'
-        deployment.save()
-
+        # Step 4: Update database
+        try:
+            with transaction.atomic():
+                deployment.status = 'inactive'
+                deployment.save(update_fields=['status'])
+                if deployment.config_file:
+                    deployment.config_file.has_deployment = False
+                    deployment.config_file.save(update_fields=['has_deployment'])
+        except:
+            logger.error("Error updating deployment status and config file.")
+            return {
+                'status': 'failed',
+                'error': 'Error updating deployment status and config file.'
+            }
+        
         return {
             'status': 'completed',
             'deployment_status': deployment.status,

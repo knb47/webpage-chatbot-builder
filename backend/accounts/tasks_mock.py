@@ -21,13 +21,27 @@ def mock_deploy_chat_app(user_id, relative_file_path):
         # Simulate fetching an UploadedFile instance
         uploaded_file = UploadedFile.objects.get(file=relative_file_path, user_id=user_id)
 
+        if uploaded_file.has_deployment:
+            logger.info("Uploaded file has already been deployed.")
+            return {'status': 'failed', 'error': 'Uploaded file has already been deployed.'}
+        
+        # check if file name already exists. Get deployments by user, then check if any of them have the same file name
+        if Deployment.objects.filter(user_id=user_id, config_file_name=uploaded_file.file_name).exists():
+            print(f"File name: {uploaded_file.file_name}")
+            logger.info("A deployment with the same file name already exists.")
+            return {'status': 'failed', 'error': 'A deployment with the same file name already exists.'}
+
         # Simulate successful deployment
         bot_name = f'mock_bot_{user_id}'
         mock_endpoint = f"http://mock-endpoint.com/{bot_name}"
 
         # Create a mock Deployment object
+        uploaded_file.has_deployment = True
+        uploaded_file.save(update_fields=['has_deployment'])
+
         deployment = Deployment.objects.create(
             user_id=user_id,
+            config_file=uploaded_file,
             config_file_path=uploaded_file.file.name,  # Store the relative file path
             config_file_name=uploaded_file.file_name,
             chatbot_name=bot_name,
