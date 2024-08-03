@@ -32,12 +32,8 @@ def deployment_status_view(request, task_id):
 
 @login_required
 def teardown_view(request, deployment_id):
-    # Assume deployment_id is used to fetch necessary info from the database
-    # You need to map deployment_id to user_id and bot_name
-    # This could be through another model that tracks deployments
-    deployment = get_object_or_404(Deployment, user=request.user, id=deployment_id)
     # Start the teardown process
-    task = teardown_chat_app.apply_async(args=[request.user.id, deployment])  # Pass the deployment ID to the task
+    task = teardown_chat_app.apply_async(args=[request.user.id, deployment_id])  # Pass the deployment ID to the task
     return JsonResponse({'task_id': task.id})
 
 @login_required
@@ -48,7 +44,9 @@ def teardown_status_view(request, task_id):
         if result.get('status') == 'completed':
             return JsonResponse({
                 'status': 'completed',
-                'message': 'Teardown successful'
+                'deployment_status': result.get('deployment_status'),
+                'endpoint': result.get('endpoint'),
+                'message': 'Teardown completed successfully.'
             })
         else:
             return JsonResponse({'status': 'failed', 'error': result.get('error', 'Unknown error')})

@@ -1,0 +1,37 @@
+{% extends 'baseless.html' %}
+
+{% block title %}
+Login
+{% endblock %}
+
+{% block content %}
+<div class="flex justify-center items-center min-h-screen bg-gray-100">
+    <div class="w-full max-w-md bg-white rounded-lg shadow-lg p-6">
+        <h2 class="text-2xl font-bold text-center mb-6">Login</h2>
+        <form method="post" action="{% url 'login' %}">
+            {% csrf_token %}
+            <div class="mb-3">
+                <label for="username" class="form-label">Username</label>
+                <input type="text" class="form-control" id="username" name="username" required>
+            </div>
+            <div class="mb-3">
+                <label for="password" class="form-label">Password</label>
+                <input type="password" class="form-control" id="password" name="password" required>
+            </div>
+            <div class="d-grid mb-3">
+                <button type="submit" class="btn btn-primary">Login</button>
+            </div>
+            <div class="text-center">
+                <a href="{% url 'password_reset' %}" class="text-indigo-600 hover:text-indigo-900">Forgot your password?</a>
+            </div>
+        </form>
+        <div class="card-footer text-center">
+            Don't have an account? <a href="{% url 'signup' %}" class="text-indigo-600 hover:text-indigo-900">Sign up</a>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
+{% endblock %}

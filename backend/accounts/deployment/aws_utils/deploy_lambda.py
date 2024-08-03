@@ -48,9 +48,9 @@ def update_lambda_function(lambda_client, function_name, zip_file, environment_v
     wait_for_update_to_complete(lambda_client, function_name)
 
 @shared_task(bind=True)
-def deploy_user_app(self, user_id, config_file_path):
+def deploy_user_app(self, user_id, temp_file_path):
     try:
-        logger.info(f"Starting deployment for user_id: {user_id}, config_file_path: {config_file_path}")
+        logger.info(f"Starting deployment for user_id: {user_id}, temp_file_path: {temp_file_path}")
         environment = os.environ.get('DJANGO_ENV', 'development')
         logger.info(f"Environment: {environment}")
 
@@ -70,7 +70,7 @@ def deploy_user_app(self, user_id, config_file_path):
 
         # Step 2: Add the config file to the deployment package
         with ZipFile(temp_package_path, 'a') as zipf:
-            zipf.write(config_file_path, os.path.join("app", "config", "config.yaml"))
+            zipf.write(temp_file_path, os.path.join("app", "config", "config.yaml"))
         logger.info(f"Added config file to {temp_package_path}")
 
         # Verify the contents of the ZIP file
@@ -81,7 +81,7 @@ def deploy_user_app(self, user_id, config_file_path):
             logger.info("Verified lambda_function.py is present in the root of the zip file")
 
         # Step 3: Extract bot_name from the Config File
-        with open(config_file_path, 'r') as file:
+        with open(temp_file_path, 'r') as file:
             config = yaml.safe_load(file)
             bot_name = config.get('bot_name', f'nameless_bot_{user_id}')
             logger.info(f"Extracted bot_name: {bot_name} from config file")
@@ -197,11 +197,17 @@ def deploy_user_app(self, user_id, config_file_path):
         os.remove(temp_package_path)
         shutil.rmtree(user_dir)
 
-        return {'status': 'completed', 'endpoint': unique_endpoint, 'config_file_path': config_file_path}
+        return {
+            'status': 'completed',
+            'resource_name': function_name,
+            'endpoint': unique_endpoint, 
+            'temp_file_path': temp_file_path,
+            'chatbot_name': bot_name
+        }
     except Exception as e:
         logger.error(f"Error during deployment: {str(e)}")
         return {
             'status': 'failed',
             'error': str(e),
-            'config_file_path': config_file_path
+            'temp_file_path': temp_file_path
         }

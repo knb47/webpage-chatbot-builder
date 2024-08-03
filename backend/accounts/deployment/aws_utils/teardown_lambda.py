@@ -40,6 +40,7 @@ def teardown_user_app(user_id, deployment):
             raise ValueError("AWS_REGION environment variable is not set.")
 
         function_name = deployment.resource_name
+        logger.info(f"Attempting to tear down resource name: {function_name}")
         lambda_client = boto3.client('lambda', region_name=aws_region)
         api_client = boto3.client('apigateway', region_name=aws_region)
 
@@ -52,6 +53,7 @@ def teardown_user_app(user_id, deployment):
             logger.info(f"Deleted Lambda function {function_name}")
         except lambda_client.exceptions.ResourceNotFoundException:
             logger.info(f"Lambda function {function_name} does not exist. Skipping deletion.")
+            raise ValueError("Lambda function not found for function name: {function_name}.")
 
         # Step 2: Remove API Gateway configurations
         api_id = os.environ.get('EXISTING_API_GATEWAY_ID')
@@ -87,7 +89,13 @@ def teardown_user_app(user_id, deployment):
 
         logger.info("Teardown completed successfully.")
 
-        return {'status': 'completed', 'message': 'Teardown successful'}
+        deployment.status = 'inactive'
+        deployment.save()
+
+        return {
+            'status': 'completed',
+            'endpoint': deployment.endpoint,
+            'message': 'Teardown successful'}
     except Exception as e:
         logger.error(f"Error during teardown: {str(e)}")
         return {

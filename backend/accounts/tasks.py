@@ -4,13 +4,12 @@ from celery import shared_task
 from .models import UploadedFile, Deployment
 from .deployment.aws_utils.deploy_lambda import deploy_user_app
 from .deployment.aws_utils.teardown_lambda import teardown_user_app
+from django.shortcuts import get_object_or_404
 import logging
 import tempfile
 import os
 
 logger = logging.getLogger(__name__)
-
-# backend/accounts/tasks.py
 
 # backend/accounts/tasks.py
 
@@ -28,6 +27,7 @@ def deploy_chat_app(self, user_id, relative_file_path):
             temp_file_path = temp_file.name
 
         result = deploy_user_app(user_id, temp_file_path)
+        os.remove(temp_file_path)
 
         if result['status'] == 'completed':
             # Extract bot_name from result or set a default if necessary
@@ -36,11 +36,14 @@ def deploy_chat_app(self, user_id, relative_file_path):
             # Create a Deployment object with correct fields
             deployment = Deployment.objects.create(
                 user_id=user_id,
+                resource_name=result['resource_name'],
                 config_file_path=uploaded_file.file.name,  # Store the relative file path
-                chatbot_name=bot_name,
+                config_file_name=uploaded_file.file_name,
+                chatbot_name=result['chatbot_name'],
                 endpoint=result['endpoint'],
-                status='active'  # Assuming 'active' is the intended status
+                status='active'
             )
+            logger.info(f"Deployment created with resource_name: {deployment.resource_name}")
 
             return {
                 'status': 'completed',
@@ -49,7 +52,6 @@ def deploy_chat_app(self, user_id, relative_file_path):
                 'file_name': uploaded_file.file_name,  # Include the actual file name
                 'deployment_id': deployment.id  # Include the deployment ID
             }
-        os.remove(temp_file_path)
 
         return {'status': 'failed', 'error': 'Deployment could not be completed.'}
     except UploadedFile.DoesNotExist:
@@ -60,10 +62,11 @@ def deploy_chat_app(self, user_id, relative_file_path):
         return {'status': 'failed', 'error': str(e)}
     
 @shared_task(bind=True)
-def teardown_chat_app(self, user_id, bot_name):
+def teardown_chat_app(self, user_id, deployment_id):
+    deployment = get_object_or_404(Deployment, user__id=user_id, id=deployment_id)
     try:
-        logger.info(f"Initiating teardown for user_id: {user_id}, bot_name: {bot_name}")
-        result = teardown_user_app(user_id, bot_name)
+        logger.info(f"Initiating teardown for user_id: {user_id}, chatbot_name: {deployment.chatbot_name}, endpoint: {deployment.endpoint}")
+        result = teardown_user_app(user_id, deployment)
         logger.info(f"Teardown result: {result}")
         return result
     except Exception as e:

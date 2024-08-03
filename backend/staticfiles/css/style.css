@@ -1,0 +1,23 @@
+/* #notification {
+  position: fixed;
+  top: 20px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 1050;
+  display: none;
+  max-width: 80%;
+  width: auto;
+  text-align: center;
+  background-color: #d4edda;
+  padding: 20px;
+  border-radius: 5px;
+  box-shadow: 0 0 10px rgba(0,0,0,0.2);
+}
+
+#notification.show {
+  display: block;
+}
+
+#notification.top-notification {
+  top: 20px;
+} */

@@ -76,6 +76,7 @@ STATICFILES_DIRS = [
 ]
 # web server (like nginx) will serve from here
 STATIC_ROOT = os.path.join(BASE_DIR, 'staticfiles')
+print(f"STATIC_ROOT: {STATIC_ROOT}")
 
 DEFAULT_AUTO_FIELD = 'django.db.models.BigAutoField'
 
