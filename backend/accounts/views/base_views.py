@@ -23,6 +23,7 @@ from django.contrib.sites.shortcuts import get_current_site
 from django.contrib.auth.forms import PasswordResetForm
 from django.conf import settings
 import logging
+import re, json
 
 logger = logging.getLogger(__name__)
 
@@ -43,19 +44,62 @@ class FileUploadView(View):
             file = request.FILES['file']
             file_name = request.POST.get('new_file_name', file.name).split('/')[-1]
 
+            # Use a default chatbot name based on the file name and user ID
+            chatbot_name = f"{file_name.rsplit('.', 1)[0]}_{request.user.id}"
+
             # Check if a file with the same name already exists for the user
             if UploadedFile.objects.filter(user=request.user, file_name=file_name).exists():
                 return JsonResponse({'exists': True, 'file_name': file_name})
 
-            # Save the file if no conflict
-            newfile = UploadedFile(file=file, file_name=file_name, user=request.user)
+            # Save the file with the default chatbot name
+            newfile = UploadedFile(
+                file=file,
+                file_name=file_name,
+                chat_configuration_name=chatbot_name,
+                user=request.user
+            )
             newfile.save()
 
-            logger.info(f"File uploaded with name: {file_name} by user: {request.user.id}")
+            logger.info(f"File uploaded with name: {file_name} by user: {request.user.id}, chatbot name: {chatbot_name}")
 
-            return JsonResponse({'exists': False, 'redirect_url': '/library'})
+            # Return the file_id for use in renaming the chatbot
+            return JsonResponse({'exists': False, 'file_id': newfile.id})
 
         return render(request, 'upload.html', {'form': form})
+
+@method_decorator(login_required, name='dispatch')
+class UpdateChatbotNameView(View):
+    def post(self, request, file_id):
+        # Parse JSON body
+        try:
+            data = json.loads(request.body)
+            new_chatbot_name = data.get('chatbot_name', '').strip()
+        except json.JSONDecodeError:
+            return JsonResponse({'success': False, 'error': 'Invalid data'})
+
+        logger.info(f"Requesting update chatbot name to: {new_chatbot_name} for file: {file_id} by user: {request.user.id}")
+
+        # Validate the new chatbot name
+        if not new_chatbot_name or not self.is_valid_name(new_chatbot_name):
+            return JsonResponse({'success': False, 'error': 'Invalid chatbot name'})
+
+        uploaded_file = get_object_or_404(UploadedFile, id=file_id, user=request.user)
+
+        # Check for name conflicts
+        if UploadedFile.objects.filter(user=request.user, chat_configuration_name=new_chatbot_name).exclude(id=file_id).exists():
+            return JsonResponse({'success': False, 'error': 'Chatbot name already exists'})
+
+        # Update the chatbot name
+        uploaded_file.chat_configuration_name = new_chatbot_name
+        uploaded_file.save()
+
+        logger.info(f"Chatbot name updated to: {new_chatbot_name} for file: {uploaded_file.file_name} by user: {request.user.id}")
+
+        return JsonResponse({'success': True})
+
+    def is_valid_name(self, name):
+        """Validate the chatbot name for allowed characters."""
+        return bool(re.match(r'^[a-zA-Z0-9_-]+$', name))
 
 
 class FileListView(generics.ListAPIView):

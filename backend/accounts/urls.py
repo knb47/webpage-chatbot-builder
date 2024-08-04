@@ -20,6 +20,7 @@ urlpatterns = [
   path('library/', views.library_view, name='library'),
   path('signup/', views.SignUpView.as_view(), name='signup'),
   path('upload/', views.FileUploadView.as_view(), name='file-upload'),
+  path('update_chatbot_name/<int:file_id>/', views.UpdateChatbotNameView.as_view(), name='update_chatbot_name'),
   path('delete-file/<int:file_id>/', views.delete_file, name='delete_file'),
   path('delete-deployment/<int:deployment_id>/', views.delete_deployment, name='delete_deployment'),
   path('teardown/<int:deployment_id>/', views.teardown_view, name='teardown'),

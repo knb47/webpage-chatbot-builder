@@ -22,12 +22,15 @@ class UploadedFile(models.Model):
     user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE)
     file = models.FileField(upload_to='uploads/')
     file_name = models.CharField(max_length=255)
-    chat_configuration_name = models.CharField(max_length=255, blank=True)
+    chat_configuration_name = models.CharField(max_length=255)
     uploaded_at = models.DateTimeField(auto_now_add=True)
     has_deployment = models.BooleanField(default=False)
 
+    class Meta:
+        unique_together = ('user', 'chat_configuration_name')
+
     def __str__(self):
-        return self.file_name
+        return f"{self.file_name} ({self.chat_configuration_name})"
 
 # Model for deployments
 class Deployment(models.Model):

@@ -61,11 +61,40 @@
   </div>
 </div>
 
+<!-- Chatbot Name Modal -->
+<div class="modal fade" id="chatbotNameModal" tabindex="-1" aria-labelledby="chatbotNameModalLabel" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title" id="chatbotNameModalLabel">Chatbot Name</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <form id="chatbotNameForm">
+          <div class="mb-3">
+            <label for="chatbotName" class="form-label">Chatbot Name</label>
+            <input type="text" class="form-control" id="chatbotName" required>
+            <div class="invalid-feedback" id="chatbotNameFeedback">
+              Please use only letters, numbers, underscores, and hyphens.
+            </div>
+          </div>
+        </form>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="confirmChatbotNameButton">Submit</button>
+      </div>
+    </div>
+  </div>
+</div>
+
 <!-- Add Bootstrap and Tailwind CSS -->
 <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/css/bootstrap.min.css" rel="stylesheet">
 <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.1.3/dist/js/bootstrap.bundle.min.js"></script>
 
 <script>
+let uploadedFileId = null; // Store the ID of the uploaded file
+
 document.getElementById('uploadForm').addEventListener('submit', function(e) {
     e.preventDefault();  // Prevent the form from submitting normally
 
@@ -92,8 +121,11 @@ document.getElementById('uploadForm').addEventListener('submit', function(e) {
             const fileExistsModal = new bootstrap.Modal(document.getElementById('fileExistsModal'));
             fileExistsModal.show();
         } else {
-            // Redirect if the file was uploaded successfully
-            window.location.href = '/account/library/';
+            // Save the file ID for updating chatbot name later
+            uploadedFileId = data.file_id; // Ensure this gets set
+            console.log("File ID:", uploadedFileId);
+            // Show the chatbot name modal for all successful uploads
+            showChatbotNameModal();
         }
     })
     .catch(error => console.error('Error:', error));
@@ -120,7 +152,7 @@ document.getElementById('confirmRenameButton').addEventListener('click', functio
     if (isValidFileName) {
         // Append the new file name with extension to the form data
         const formData = new FormData(document.getElementById('uploadForm'));
-        formData.append('new_file_name', newFileName + fileExtension);
+        formData.set('new_file_name', newFileName + fileExtension);
 
         fetch('', {
             method: 'POST',
@@ -132,7 +164,11 @@ document.getElementById('confirmRenameButton').addEventListener('click', functio
         .then(response => response.json())
         .then(data => {
             if (!data.exists) {
-                window.location.href = '/account/library/';
+                // Save the file ID for updating chatbot name later
+                uploadedFileId = data.file_id; // Ensure this gets set
+                console.log("File ID after rename:", uploadedFileId);
+                // Proceed to chatbot name input
+                showChatbotNameModal();
             }
         })
         .catch(error => console.error('Error:', error));
@@ -147,7 +183,63 @@ document.getElementById('confirmRenameButton').addEventListener('click', functio
     }
 });
 
-// Remove invalid class and hide feedback on input change
+// Show the chatbot name modal
+function showChatbotNameModal() {
+    const chatbotNameModal = new bootstrap.Modal(document.getElementById('chatbotNameModal'));
+    chatbotNameModal.show();
+}
+
+// Handle the confirm chatbot name button click
+document.getElementById('confirmChatbotNameButton').addEventListener('click', function() {
+    const chatbotNameInput = document.getElementById('chatbotName');
+    const chatbotName = chatbotNameInput.value.trim();
+    console.log("Chatbot Name:", chatbotName);
+
+    // Validate the chatbot name
+    const isValidChatbotName = /^[a-zA-Z0-9_-]+$/.test(chatbotName);
+
+    if (isValidChatbotName && uploadedFileId !== null) {
+        // Send the new chatbot name to the server for updating
+        fetch(`/account/update_chatbot_name/${uploadedFileId}/`, {
+            method: 'POST',
+            body: JSON.stringify({ chatbot_name: chatbotName }),
+            headers: {
+                'Content-Type': 'application/json',
+                'X-CSRFToken': '{{ csrf_token }}',
+            },
+        })
+        .then(response => response.json())
+        .then(data => {
+            if (data.success) {
+                // Close the modal and redirect the user
+                const chatbotNameModal = bootstrap.Modal.getInstance(document.getElementById('chatbotNameModal'));
+                chatbotNameModal.hide();
+                alert('Chatbot name updated successfully!');
+                window.location.href = '/account/library/';
+            } else {
+                // Show the error message if update fails
+                chatbotNameInput.classList.add('is-invalid');
+                document.getElementById('chatbotNameFeedback').textContent = data.error;
+                document.getElementById('chatbotNameFeedback').style.display = 'block';
+            }
+        })
+        .catch(error => console.error('Error:', error));
+    } else {
+        // Show invalid feedback and keep the modal open
+        chatbotNameInput.classList.add('is-invalid');
+        document.getElementById('chatbotNameFeedback').style.display = 'block';
+    }
+});
+
+// Remove invalid class and hide feedback on input change for chatbot name
+document.getElementById('chatbotName').addEventListener('input', function() {
+    if (this.classList.contains('is-invalid')) {
+        this.classList.remove('is-invalid');
+        document.getElementById('chatbotNameFeedback').style.display = 'none';
+    }
+});
+
+// Remove invalid class and hide feedback on input change for new file name
 document.getElementById('newFileName').addEventListener('input', function() {
     if (this.classList.contains('is-invalid')) {
         this.classList.remove('is-invalid');
@@ -160,6 +252,14 @@ document.getElementById('newFileName').addEventListener('keypress', function(e) 
     if (e.key === 'Enter') {
         e.preventDefault(); // Prevent the modal from closing
         document.getElementById('confirmRenameButton').click(); // Trigger the confirm button click
+    }
+});
+
+// Handle the Enter key in the chatbot name modal
+document.getElementById('chatbotName').addEventListener('keypress', function(e) {
+    if (e.key === 'Enter') {
+        e.preventDefault(); // Prevent the modal from closing
+        document.getElementById('confirmChatbotNameButton').click(); // Trigger the confirm button click
     }
 });
 </script>
