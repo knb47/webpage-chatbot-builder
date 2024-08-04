@@ -18,8 +18,23 @@
       <li id="deployment-{{ deployment.id }}" class="border rounded-lg p-4 shadow-lg bg-white">
           <div class="flex justify-between items-center">
               <div>
-                  <p class="font-semibold">Endpoint: {{ deployment.endpoint }}</p>
-                  <p role="status-text">Status: {{ deployment.status }}</p>
+                  <!-- Main text for chatbot name -->
+                  <p class="font-bold text-xl">{{ deployment.chatbot_name }}</p>
+                  <!-- Less important information about deployment details -->
+                  <p class="text-sm text-gray-700 mt-1">
+                    <span class="text-gray-600">Endpoint:</span> {{ deployment.endpoint }}
+                  </p>
+                  <p class="text-xs text-gray-500">{{ deployment.deployed_at|date:"F j, Y, g:i a" }}</p>
+                  <!-- Status text with conditional color -->
+                  <p class="status-text text-sm mt-2 
+                      {% if deployment.status == 'active' %}
+                        text-green-600
+                      {% else %}
+                        text-gray-600
+                      {% endif %}
+                  ">
+                    Status: {{ deployment.status }}
+                  </p>
               </div>
               <div class="flex space-x-2">
                   <!-- Conditionally display 'End' button only if the deployment is active -->
@@ -80,10 +95,17 @@ document.addEventListener('DOMContentLoaded', function() {
 
         if (!item) {
             console.error(`Item not found for deploymentId: ${deploymentId}`);
+            showNotification(`Error: Item not found for deploymentId: ${deploymentId}`, 'error');
             return;
         }
 
-        const statusText = item.querySelector('p[role="status-text"]');
+        const statusText = item.querySelector('.status-text');
+        if (!statusText) {
+            console.error(`Status text element not found for deploymentId: ${deploymentId}`);
+            showNotification(`Error: Status text element not found for deploymentId: ${deploymentId}`, 'error');
+            return;
+        }
+
         const endButton = item.querySelector('.teardown-button');
         const loadingButton = item.querySelector('.teardown-loading-button');
 
@@ -91,6 +113,8 @@ document.addEventListener('DOMContentLoaded', function() {
 
         // Update status text and show delete button only
         statusText.textContent = `Status: ${data.deployment_status}`;
+        statusText.classList.remove('text-green-600');
+        statusText.classList.add('text-gray-600');
         endButton.style.display = 'none'; // Hide end button if still visible
 
         // Create the delete button if it doesn't already exist
@@ -114,8 +138,21 @@ document.addEventListener('DOMContentLoaded', function() {
     function handleError(message, deploymentId, type) {
         const deploymentSelector = `deployment-${deploymentId}`;
         const item = document.getElementById(deploymentSelector);
+
+        if (!item) {
+            console.error(`Element not found for deploymentId: ${deploymentId}`);
+            showNotification(`Error: Element not found for deploymentId: ${deploymentId}`, 'error');
+            return;
+        }
+
         const endButton = item.querySelector('.teardown-button');
         const loadingButton = item.querySelector('.teardown-loading-button');
+
+        if (!endButton || !loadingButton) {
+            console.error(`Buttons not found for deploymentId: ${deploymentId}`);
+            showNotification(`Error: Buttons not found for deploymentId: ${deploymentId}`, 'error');
+            return;
+        }
 
         showNotification(`An error occurred while ending the deployment: ${message}`, 'error');
         endButton.style.display = 'inline-block';
