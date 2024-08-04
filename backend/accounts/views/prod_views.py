@@ -37,6 +37,13 @@ def deployment_status_view(request, task_id):
 
 @login_required
 def teardown_view(request, deployment_id):
+    deployment = get_object_or_404(Deployment, id=deployment_id, user=request.user)
+    if deployment.status == 'inactive':
+        return JsonResponse({
+            'status': 'failed',
+            'message': 'Deployment is already inactive.'
+        })
+    
     # Start the teardown process
     task = teardown_chat_app.apply_async(args=[request.user.id, deployment_id])  # Pass the deployment ID to the task
     return JsonResponse({'task_id': task.id})

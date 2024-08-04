@@ -99,6 +99,10 @@ function handleCompletion(data, itemId, type) {
   if (type === 'deployment') {
     button.style.display = 'inline-block';
     loadingButton.style.display = 'none';
+    
+    // Disable the deploy button after successful deployment
+    button.disabled = true;
+    button.classList.add('opacity-50', 'cursor-not-allowed');
 
     const deployedText = item.querySelector('.deployed-text');
     if (deployedText) {
@@ -146,5 +150,5 @@ function handleError(error, itemId, type) {
   button.style.display = 'inline-block';
   loadingButton.style.display = 'none';
 
-  showNotification(`An error occurred while checking ${type} status: ${error}`, 'error');
+  showNotification(`An error occurred while during the deployment process: ${error}`, 'error');
 }

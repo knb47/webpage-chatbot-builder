@@ -44,12 +44,85 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{% static 'js/statusCheckTeardown.js' %}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const modal = new bootstrap.Modal(document.getElementById('genericModal'));
     let confirmCallback = null;
 
+    // Function to check the status of the teardown
+    function checkStatus(taskId, deploymentId, type) {
+        const check = async () => {
+            try {
+                const url = `/account/teardown_status/${taskId}/`;
+                const response = await fetch(url);
+                const data = await response.json();
+
+                if (data.status === 'pending') {
+                    setTimeout(check, 5000); // Poll every 5 seconds
+                } else if (data.status === 'completed') {
+                    handleCompletion(data, deploymentId, type);
+                } else {
+                    handleError(data.message, deploymentId, type);
+                }
+            } catch (error) {
+                handleError(error.message, deploymentId, type);
+            }
+        };
+
+        check();
+    }
+
+    // Function to handle completion of a task
+    function handleCompletion(data, deploymentId, type) {
+        console.log('Handling completion for deploymentId:', deploymentId); // Debugging output
+        const deploymentSelector = `deployment-${deploymentId}`;
+        const item = document.getElementById(deploymentSelector);
+
+        if (!item) {
+            console.error(`Item not found for deploymentId: ${deploymentId}`);
+            return;
+        }
+
+        const statusText = item.querySelector('p[role="status-text"]');
+        const endButton = item.querySelector('.teardown-button');
+        const loadingButton = item.querySelector('.teardown-loading-button');
+
+        loadingButton.style.display = 'none';
+
+        // Update status text and show delete button only
+        statusText.textContent = `Status: ${data.deployment_status}`;
+        endButton.style.display = 'none'; // Hide end button if still visible
+
+        // Create the delete button if it doesn't already exist
+        let deleteButton = item.querySelector('.delete-deployment');
+        if (!deleteButton) {
+            deleteButton = document.createElement('button');
+            deleteButton.className = 'btn btn-danger btn-sm delete-deployment';
+            deleteButton.textContent = 'Delete';
+            deleteButton.setAttribute('data-deployment-id', deploymentId); // Set deploymentId correctly
+            deleteButton.onclick = function() {
+                showConfirmationModal('Are you sure you want to delete this deployment?', data.endpoint, () => handleDelete(deploymentId));
+            };
+
+            item.querySelector('.flex.space-x-2').appendChild(deleteButton);
+        }
+
+        showNotification(`Teardown for '${data.endpoint}' completed successfully!`, 'success');
+    }
+
+    // Function to handle errors during teardown
+    function handleError(message, deploymentId, type) {
+        const deploymentSelector = `deployment-${deploymentId}`;
+        const item = document.getElementById(deploymentSelector);
+        const endButton = item.querySelector('.teardown-button');
+        const loadingButton = item.querySelector('.teardown-loading-button');
+
+        showNotification(`An error occurred while ending the deployment: ${message}`, 'error');
+        endButton.style.display = 'inline-block';
+        loadingButton.style.display = 'none';
+    }
+
+    // Add event listeners for buttons
     document.getElementById('deployment-list').addEventListener('click', function(event) {
         const target = event.target;
         if (target.classList.contains('delete-deployment') || target.classList.contains('teardown-button')) {
@@ -58,13 +131,22 @@ document.addEventListener('DOMContentLoaded', function() {
             console.log('Button clicked:', { deploymentId, deploymentEndpoint }); // Debugging output
 
             if (target.classList.contains('delete-deployment')) {
+                if (!deploymentId) {
+                    console.error('Attempted to delete with null deploymentId');
+                    return;
+                }
                 showConfirmationModal('Are you sure you want to delete this deployment?', deploymentEndpoint, () => handleDelete(deploymentId));
             } else if (target.classList.contains('teardown-button')) {
+                if (!deploymentId) {
+                    console.error('Attempted to teardown with null deploymentId');
+                    return;
+                }
                 showConfirmationModal(`Are you sure you want to end this deployment for ${deploymentEndpoint}?`, deploymentEndpoint, () => handleTeardown(deploymentId));
             }
         }
     });
 
+    // Function to show confirmation modal
     function showConfirmationModal(message, endpoint, callback) {
         confirmCallback = callback;
         document.getElementById('genericModalMessage').textContent = message;
@@ -72,6 +154,7 @@ document.addEventListener('DOMContentLoaded', function() {
         modal.show();
     }
 
+    // Handle confirmation modal button click
     document.getElementById('genericModalConfirmButton').addEventListener('click', function() {
         modal.hide();
         if (typeof confirmCallback === 'function') {
@@ -79,85 +162,94 @@ document.addEventListener('DOMContentLoaded', function() {
             confirmCallback = null; // Clear the callback to prevent accidental re-use
         }
     });
-});
 
-async function handleDelete(deploymentId) {
-    if (!deploymentId) {
-        console.error('Invalid deploymentId:', deploymentId); // Debugging output
-        return;
-    }
+    // Function to handle the deletion of a deployment
+    async function handleDelete(deploymentId) {
+        console.log('Delete function called with deploymentId:', deploymentId); // Debugging output
 
-    const button = document.querySelector(`.delete-deployment[data-deployment-id="${deploymentId}"]`);
+        if (!deploymentId) {
+            console.error('Invalid deploymentId:', deploymentId); // Debugging output
+            return;
+        }
 
-    if (button) { // Ensure button exists before proceeding
-        button.disabled = true;
-        button.textContent = 'Deleting...';
-        console.log('Button found:', button); // Debugging output
+        const button = document.querySelector(`.delete-deployment[data-deployment-id="${deploymentId}"]`);
 
-        try {
-            const response = await fetch(`/account/delete-deployment/${deploymentId}/`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': '{{ csrf_token }}'
+        if (button) { // Ensure button exists before proceeding
+            button.disabled = true;
+            button.textContent = 'Deleting...';
+
+            try {
+                const response = await fetch(`/account/delete-deployment/${deploymentId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    }
+                });
+                const data = await response.json();
+                if (data.success) {
+                    const listItem = document.getElementById(`deployment-${deploymentId}`);
+                    if (listItem) {
+                        listItem.remove();
+                    } else {
+                        console.error(`List item not found for deploymentId: ${deploymentId}`);
+                    }
+                    if (document.getElementById('deployment-list').children.length === 0) {
+                        document.getElementById('deployment-list').innerHTML = '<li>No deployments found.</li>';
+                    }
+                    showNotification(`Deployment deleted successfully.`, 'success');
+                } else {
+                    alert('Failed to delete deployment');
+                    button.disabled = false;
+                    button.textContent = 'Delete';
                 }
-            });
-            const data = await response.json();
-            if (data.success) {
-                const listItem = document.getElementById(`deployment-${deploymentId}`);
-                listItem.remove();
-                if (document.getElementById('deployment-list').children.length === 0) {
-                    document.getElementById('deployment-list').innerHTML = '<li>No deployments found.</li>';
-                }
-                showNotification(`Deployment deleted successfully.`, 'success');
-            } else {
-                alert('Failed to delete deployment');
+            } catch (error) {
+                console.error('Error:', error);
+                alert('An error occurred while deleting the deployment');
                 button.disabled = false;
                 button.textContent = 'Delete';
             }
-        } catch (error) {
-            console.error('Error:', error);
-            alert('An error occurred while deleting the deployment');
-            button.disabled = false;
-            button.textContent = 'Delete';
+        } else {
+            console.error(`Button not found for deploymentId: ${deploymentId}`); // Debugging output
         }
-    } else {
-        console.error(`Button not found for deploymentId: ${deploymentId}`); // Debugging output
-    }
-}
-
-async function handleTeardown(deploymentId) {
-    if (!deploymentId) {
-        console.error('Invalid deploymentId:', deploymentId); // Debugging output
-        return;
     }
 
-    const endButton = document.querySelector(`.teardown-button[data-deployment-id="${deploymentId}"]`);
-    const endingButton = document.querySelector(`.teardown-loading-button[data-deployment-id="${deploymentId}"]`);
+    // Function to handle the teardown of a deployment
+    async function handleTeardown(deploymentId) {
+        console.log('Teardown function called with deploymentId:', deploymentId); // Debugging output
 
-    if (endButton && endingButton) { // Ensure buttons exist before proceeding
-        endButton.style.display = 'none';
-        endingButton.style.display = 'inline-block';
-        console.log('End button and loading button found:', { endButton, endingButton }); // Debugging output
-
-        try {
-            const response = await fetch(`/account/teardown/${deploymentId}/`, {
-                method: 'POST',
-                headers: {
-                    'X-CSRFToken': '{{ csrf_token }}'
-                }
-            });
-            const data = await response.json();
-            const taskId = data.task_id;
-            checkStatus(taskId, deploymentId, 'teardown');
-        } catch (error) {
-            console.error('Error:', error);
-            showNotification('An error occurred while ending the deployment', 'error');
-            endButton.style.display = 'inline-block';
-            endingButton.style.display = 'none';
+        if (!deploymentId) {
+            console.error('Invalid deploymentId:', deploymentId); // Debugging output
+            return;
         }
-    } else {
-        console.error(`End button or loading button not found for deploymentId: ${deploymentId}`); // Debugging output
+
+        const endButton = document.querySelector(`.teardown-button[data-deployment-id="${deploymentId}"]`);
+        const endingButton = document.querySelector(`.teardown-loading-button[data-deployment-id="${deploymentId}"]`);
+
+        if (endButton && endingButton) { // Ensure buttons exist before proceeding
+            endButton.style.display = 'none';
+            endingButton.style.display = 'inline-block';
+            console.log('End button and loading button found:', { endButton, endingButton }); // Debugging output
+
+            try {
+                const response = await fetch(`/account/teardown/${deploymentId}/`, {
+                    method: 'POST',
+                    headers: {
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    }
+                });
+                const data = await response.json();
+                const taskId = data.task_id;
+                checkStatus(taskId, deploymentId, 'teardown');
+            } catch (error) {
+                console.error('Error:', error);
+                showNotification('An error occurred while ending the deployment', 'error');
+                endButton.style.display = 'inline-block';
+                endingButton.style.display = 'none';
+            }
+        } else {
+            console.error(`End button or loading button not found for deploymentId: ${deploymentId}`); // Debugging output
+        }
     }
-}
+});
 </script>
 {% endblock %}

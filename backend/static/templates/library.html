@@ -61,7 +61,6 @@
 {% endblock %}
 
 {% block extra_scripts %}
-<script src="{% static 'js/statusCheck.js' %}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     const modal = new bootstrap.Modal(document.getElementById('genericModal'));
@@ -69,23 +68,21 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.getElementById('file-list').addEventListener('click', function(event) {
         const target = event.target;
-        if (target.classList.contains('delete-file') || target.classList.contains('deploy-button')) {
-            const fileId = target.getAttribute('data-file-id');
-            const fileName = target.getAttribute('data-file-name');
-            if (target.classList.contains('delete-file')) {
-                showConfirmationModal('Are you sure you want to delete this file?', fileName, () => handleDelete(fileId));
-            } else {
-                const isDeployed = target.getAttribute('data-deployed') === 'true';
-                const message = isDeployed 
-                    ? `This configuration has already been deployed. Are you sure you want to redeploy ${fileName}?`
-                    : `Are you sure you want to deploy ${fileName}?`;
-                showConfirmationModal(message, fileName, () => handleDeploy(fileId));
-            }
+        const fileId = target.getAttribute('data-file-id');
+        const fileName = target.getAttribute('data-file-name');
+
+        if (target.classList.contains('delete-file')) {
+            showConfirmationModal('Are you sure you want to delete this file?', fileName, () => handleDelete(fileId));
+        } else if (target.classList.contains('deploy-button') && !target.disabled) {
+            const message = target.classList.contains('opacity-50')
+                ? `This configuration has already been deployed. Are you sure you want to redeploy ${fileName}?`
+                : `Are you sure you want to deploy ${fileName}?`;
+            showConfirmationModal(message, fileName, () => handleDeploy(fileId));
         }
     });
 
     function showConfirmationModal(message, fileName, callback) {
-        confirmCallback = callback; // Store the callback function
+        confirmCallback = callback;
         document.getElementById('genericModalMessage').textContent = message;
         document.getElementById('genericModalFileName').textContent = fileName;
         modal.show();
@@ -93,78 +90,167 @@ document.addEventListener('DOMContentLoaded', function() {
 
     document.getElementById('genericModalConfirmButton').addEventListener('click', function() {
         modal.hide();
-        if (confirmCallback) {
-            confirmCallback(); // Call the stored callback function
-        }
+        if (confirmCallback) confirmCallback();
     });
-});
 
-async function handleDelete(fileId) {
-    const button = document.querySelector(`.delete-file[data-file-id="${fileId}"]`);
-    button.disabled = true;
-    button.textContent = 'Deleting...';
+    async function handleDelete(fileId) {
+        const button = document.querySelector(`.delete-file[data-file-id="${fileId}"]`);
+        button.disabled = true;
+        button.textContent = 'Deleting...';
 
-    try {
-        const success = await deleteFile(fileId);
-        if (success) {
-            const listItem = document.getElementById(`deployment-${fileId}`);
-            listItem.remove();
-            if (document.getElementById('file-list').children.length === 0) {
-                document.getElementById('file-list').innerHTML = '<li class="text-gray-500">No files uploaded.</li>';
+        try {
+            const success = await deleteFile(fileId);
+            if (success) {
+                const listItem = document.getElementById(`deployment-${fileId}`);
+                listItem.remove();
+                if (!document.getElementById('file-list').children.length) {
+                    document.getElementById('file-list').innerHTML = '<li class="text-gray-500">No files uploaded.</li>';
+                }
+                showNotification(`File '${listItem.querySelector('.font-semibold').textContent}' deleted successfully.`, 'success');
+            } else {
+                throw new Error('Failed to delete file');
             }
-            showNotification(`File '${listItem.querySelector('.font-semibold').textContent}' deleted successfully.`, 'success');
-        } else {
-            throw new Error('Failed to delete file');
+        } catch (error) {
+            console.error('Error:', error);
+            showNotification('An error occurred while deleting the file', 'error');
+            button.disabled = false;
+            button.textContent = 'Delete';
         }
-    } catch (error) {
-        console.error('Error:', error);
-        showNotification('An error occurred while deleting the file', 'error');
-        button.disabled = false;
-        button.textContent = 'Delete';
     }
-}
 
-async function handleDeploy(fileId) {
-    const deployButton = document.querySelector(`.deploy-button[data-file-id="${fileId}"]`);
-    const deployingButton = document.querySelector(`.deployment-loading-button[data-file-id="${fileId}"]`);
+    async function handleDeploy(fileId) {
+        const deployButton = document.querySelector(`.deploy-button[data-file-id="${fileId}"]`);
+        const deployingButton = document.querySelector(`.deployment-loading-button[data-file-id="${fileId}"]`);
 
-    deployButton.style.display = 'none';
-    deployingButton.style.display = 'inline-block';
+        deployButton.style.display = 'none';
+        deployingButton.style.display = 'inline-block';
 
-    try {
-        const response = await fetch(`/account/deploy/${fileId}/`, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': '{{ csrf_token }}'
-            }
+        try {
+            const response = await fetch(`/account/deploy/${fileId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                }
+            });
+            const data = await response.json();
+            const taskId = data.task_id;
+            checkStatus(taskId, fileId, 'deployment');
+        } catch (error) {
+            console.error('Error:', error);
+            showNotification('An error occurred while deploying the chat app', 'error');
+            deployButton.style.display = 'inline-block';
+            deployingButton.style.display = 'none';
+        }
+    }
+
+    async function deleteFile(fileId) {
+        try {
+            const response = await fetch(`/account/delete-file/${fileId}/`, {
+                method: 'POST',
+                headers: {
+                    'X-CSRFToken': '{{ csrf_token }}'
+                }
+            });
+            const data = await response.json();
+            return data.success;
+        } catch (error) {
+            console.error('Error:', error);
+            return false;
+        }
+    }
+
+    function checkStatus(taskId, itemId, type) {
+        return new Promise((resolve, reject) => {
+            const check = async () => {
+                try {
+                    const url = `/account/deployment_status/${taskId}/`;
+
+                    const response = await fetch(url);
+                    const data = await response.json();
+                    console.log('Response data:', data);
+
+                    if (data.status === 'pending') {
+                        setTimeout(check, 5000);
+                    } else if (data.status === 'completed') {
+                        console.log('Task completed:', data);
+                        handleCompletion(data, itemId, type);
+                        resolve(data);
+                    } else {
+                        console.log('Task error:', data.error);
+                        handleError(data.error, itemId, type);
+                        reject(new Error(data.error));
+                    }
+                } catch (error) {
+                    console.error('Error:', error);
+                    showNotification('An error occurred while checking status', 'error');
+                    reject(error);
+                }
+            };
+
+            check();
         });
-        const data = await response.json();
-        const taskId = data.task_id;
-        
-        // Check status and update UI based on task ID
-        checkStatus(taskId, fileId, 'deployment');
-    } catch (error) {
-        console.error('Error:', error);
-        showNotification('An error occurred while deploying the chat app', 'error');
-        deployButton.style.display = 'inline-block';
-        deployingButton.style.display = 'none';
     }
-}
 
-async function deleteFile(fileId) {
-    try {
-        const response = await fetch(`/account/delete-file/${fileId}/`, {
-            method: 'POST',
-            headers: {
-                'X-CSRFToken': '{{ csrf_token }}'
+    function handleCompletion(data, itemId, type) {
+        const itemIdSelector = `${type}-${itemId}`;
+        const item = document.getElementById(itemIdSelector);
+
+        if (!item) {
+            console.error(`Element with ID ${itemIdSelector} not found`);
+            showNotification('Error: Item not found in DOM', 'error');
+            return;
+        }
+
+        const button = item.querySelector(`.deploy-button[data-file-id="${itemId}"]`);
+        const loadingButton = item.querySelector(`.deployment-loading-button[data-file-id="${itemId}"]`);
+
+        if (!button || !loadingButton) {
+            console.error(`Button not found in element with ID ${itemIdSelector}`);
+            showNotification('Error: Button not found in DOM', 'error');
+            return;
+        }
+
+        if (type === 'deployment') {
+            loadingButton.style.display = 'none';
+            button.style.display = 'inline-block';
+            button.disabled = true;
+            button.classList.add('opacity-50', 'cursor-not-allowed');
+
+            const deployedText = item.querySelector('.deployed-text');
+            if (deployedText) {
+                deployedText.style.display = 'block';
+            } else {
+                console.warn(`.deployed-text not found in element with ID ${itemIdSelector}`);
             }
-        });
-        const data = await response.json();
-        return data.success;
-    } catch (error) {
-        console.error('Error:', error);
-        return false;
+
+            showNotification(`Deployment for '${data.file_name}' completed! <a href="/account/deployments/">Click here</a> to see your deployment.`, 'success');
+        }
     }
-}
+
+    function handleError(error, itemId, type) {
+        const itemIdSelector = `${type}-${itemId}`;
+        const item = document.getElementById(itemIdSelector);
+
+        if (!item) {
+            console.error(`Element with ID ${itemIdSelector} not found during error handling`);
+            showNotification('Error: Item not found in DOM during error handling', 'error');
+            return;
+        }
+
+        const button = item.querySelector(`.deploy-button[data-file-id="${itemId}"]`);
+        const loadingButton = item.querySelector(`.deployment-loading-button[data-file-id="${itemId}"]`);
+
+        if (!button || !loadingButton) {
+            console.error(`Button not found in element with ID ${itemIdSelector}`);
+            showNotification('Error: Button not found in DOM during error handling', 'error');
+            return;
+        }
+
+        button.style.display = 'inline-block';
+        loadingButton.style.display = 'none';
+
+        showNotification(`An error occurred during the deployment process: ${error}`, 'error');
+    }
+});
 </script>
 {% endblock %}
