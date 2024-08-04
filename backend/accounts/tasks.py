@@ -27,17 +27,27 @@ def deploy_chat_app(self, user_id, relative_file_path):
             logger.info("Uploaded file has already been deployed.")
             return {'status': 'failed', 'error': 'Uploaded file has already been deployed.'}
         
+        try:
+            chat_configuration_name = uploaded_file.chat_configuration_name
+        except:
+            logger.error("Uploaded file does not have a chat configuration name.")
+            return {'status': 'failed', 'error': 'Uploaded file does not have a chat configuration name.'}
+        
         # check if file name already exists. Get deployments by user, then check if any of them have the same file name
-        if Deployment.objects.filter(user_id=user_id, config_file_name=uploaded_file.file_name).exists():
-            logger.info("A deployment with the same file name already exists.")
-            return {'status': 'failed', 'error': 'A deployment with the same file name already exists.'}
+        try:
+            if Deployment.objects.filter(user_id=user_id, chatbot_name=chat_configuration_name).exists():
+                logger.info("A deployment with the same name already exists.")
+                return {'status': 'failed', 'error': 'A deployment with the same file name already exists.'}
+        except Exception as e:
+            logger.info(f"Error checking for existing deployments: {str(e)}")
+            return {'status': 'failed', 'error': 'Error checking for existing deployments.'}
 
         with tempfile.NamedTemporaryFile(delete=False) as temp_file:
             for chunk in uploaded_file.file.chunks():
                 temp_file.write(chunk)
             temp_file_path = temp_file.name
 
-        result = deploy_user_app(user_id, temp_file_path)
+        result = deploy_user_app(user_id, temp_file_path, chat_configuration_name)
         os.remove(temp_file_path)
 
         if result['status'] == 'completed':

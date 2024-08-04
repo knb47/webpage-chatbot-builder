@@ -48,7 +48,7 @@ def update_lambda_function(lambda_client, function_name, zip_file, environment_v
     wait_for_update_to_complete(lambda_client, function_name)
 
 @shared_task(bind=True)
-def deploy_user_app(self, user_id, temp_file_path):
+def deploy_user_app(self, user_id, temp_file_path, chat_configuration_name):
     try:
         logger.info(f"Starting deployment for user_id: {user_id}, temp_file_path: {temp_file_path}")
         environment = os.environ.get('DJANGO_ENV', 'development')
@@ -80,11 +80,8 @@ def deploy_user_app(self, user_id, temp_file_path):
                 raise FileNotFoundError("lambda_function.py not found in the root of the zip file")
             logger.info("Verified lambda_function.py is present in the root of the zip file")
 
-        # Step 3: Extract bot_name from the Config File
-        with open(temp_file_path, 'r') as file:
-            config = yaml.safe_load(file)
-            bot_name = config.get('bot_name', f'nameless_bot_{user_id}')
-            logger.info(f"Extracted bot_name: {bot_name} from config file")
+        # Step 3: Obtain chatbot name
+        # DONE
 
         # Step 4: Upload the modified deployment package to Lambda
         with open(temp_package_path, 'rb') as f:
@@ -92,8 +89,8 @@ def deploy_user_app(self, user_id, temp_file_path):
 
         # Step 5: Create or update Lambda function
         sanitize_name = lambda bot_name: ''.join(c for c in bot_name if c.isalnum() or c in '-_') # adhere to aws lambda naming restrictions
-        bot_name_clean = sanitize_name(bot_name)
-        function_name = f"user-app-{user_id}-{bot_name_clean}"
+        bot_name_clean = sanitize_name(chat_configuration_name)
+        function_name = f"user_{user_id}_agent_v0_{chat_configuration_name}"
 
         lambda_client = boto3.client('lambda', region_name=aws_region)
         api_client = boto3.client('apigateway', region_name=aws_region)
@@ -118,7 +115,7 @@ def deploy_user_app(self, user_id, temp_file_path):
                     'Environment': 'production',
                     'Feature': 'user-chat-deployment',
                     'User': str(user_id),
-                    'Bot': bot_name
+                    'Bot': chat_configuration_name
                 },
             )
             logger.info(f"Created Lambda function {function_name}")
@@ -178,7 +175,7 @@ def deploy_user_app(self, user_id, temp_file_path):
         )
 
         # Set permissions for API Gateway to invoke Lambda
-        statement_id = f"apigateway-{user_id}-{bot_name}"
+        statement_id = f"apigateway-{user_id}-agent-{chat_configuration_name}"
         try:
             lambda_client.add_permission(
                 FunctionName=function_name,
@@ -190,7 +187,7 @@ def deploy_user_app(self, user_id, temp_file_path):
         except lambda_client.exceptions.ResourceConflictException:
             logger.info(f"Permission statement {statement_id} already exists. Skipping permission creation.")
 
-        unique_endpoint = f"https://{api_id}.execute-api.{aws_region}.amazonaws.com/prod/user/{user_id}/{bot_name}/chat"
+        unique_endpoint = f"https://{api_id}.execute-api.{aws_region}.amazonaws.com/prod/user/{user_id}/agent/v0/{chat_configuration_name}/chat"
         logger.info(f"Deployment completed. Endpoint: {unique_endpoint}")
 
         # Clean up
@@ -202,7 +199,7 @@ def deploy_user_app(self, user_id, temp_file_path):
             'resource_name': function_name,
             'endpoint': unique_endpoint, 
             'temp_file_path': temp_file_path,
-            'chatbot_name': bot_name
+            'chatbot_name': chat_configuration_name
         }
     except Exception as e:
         logger.error(f"Error during deployment: {str(e)}")

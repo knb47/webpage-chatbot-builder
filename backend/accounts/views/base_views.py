@@ -22,6 +22,7 @@ from django.utils.encoding import force_bytes
 from django.contrib.sites.shortcuts import get_current_site
 from django.contrib.auth.forms import PasswordResetForm
 from django.conf import settings
+from django.db import transaction
 import logging
 import re, json
 
@@ -151,9 +152,16 @@ def deployments_view(request):
 @login_required
 def delete_deployment(request, deployment_id):
     if request.method == 'POST':
-        deployment = get_object_or_404(Deployment, id=deployment_id, user=request.user)
-        deployment.delete()
-        return JsonResponse({'success': True})
+        try:
+            with transaction.atomic():
+              deployment = get_object_or_404(Deployment, id=deployment_id, user=request.user)
+              deployment.config_file.has_deployment = False
+              deployment.config_file.save(update_fields=['has_deployment'])
+              deployment.delete()
+              return JsonResponse({'success': True})
+        except Exception as e:
+            logger.error(f'Error deleting deployment {deployment_id}: {e}')
+            return JsonResponse({'success': False, 'error': str(e)}, status=500)
     return JsonResponse({'success': False}, status=400)
 
 def password_reset_request(request):

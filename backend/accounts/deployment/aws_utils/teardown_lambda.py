@@ -95,10 +95,7 @@ def teardown_user_app(user_id, deployment):
             with transaction.atomic():
                 deployment.status = 'inactive'
                 deployment.save(update_fields=['status'])
-                if deployment.config_file:
-                    deployment.config_file.has_deployment = False
-                    deployment.config_file.save(update_fields=['has_deployment'])
-        except:
+        except Exception:
             logger.error("Error updating deployment status and config file.")
             return {
                 'status': 'failed',

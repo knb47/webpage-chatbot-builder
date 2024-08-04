@@ -6,6 +6,11 @@ from ..tasks import deploy_chat_app, teardown_chat_app
 @login_required
 def deploy_view(request, file_id):
     config_file = get_object_or_404(UploadedFile, id=file_id, user=request.user)
+    
+    # if the config file is already deployed, then we can't re-deploy it
+    if Deployment.objects.filter(user=request.user,config_file_path=config_file.file.name).exists():
+        return JsonResponse({'error': 'This configuration file is already deployed.'})
+    
     task = deploy_chat_app.apply_async(args=[request.user.id, config_file.file.name])  # file.name includes the relative path
     return JsonResponse({'task_id': task.id})
 
