@@ -3,14 +3,16 @@
 {% block title %}Home{% endblock %}
 
 {% block content %}
-<h1>Welcome</h1>
-<br>
-<p>Chapp assistants guide your customers through a user journey that you define - no code needed!</p>
-<br>
-<ul>
-    <li>Chapp assistants can infer and perform actions on behalf of the user, doing most of the thinking for the customer.</li>
-    <li>Add memory to chapp about your website and offerings to enhance your customer experience.</li>
-    <li>Unlike other assistants, chapp assistants are aware of their capabilties and limitations. They won't lead your users down an empty road.</li>
-    <li>Lead your users from contact to sale with chapp.</li>
-</ul>
+<div class="container mx-auto px-4 py-12 space-y-12">
+    <!-- Main heading and introductory text -->
+    <div class="text-center mb-12">
+        <h1 class="text-4xl font-bold text-gray-800">Welcome to Chapp</h1>
+        <p class="mt-4 text-lg text-gray-600">Chapp assistants guide your customers through a user journey that you define - no code needed!</p>
+    </div>
+
+    <!-- Include each block with consistent spacing -->
+    {% include 'home_what.html' %}
+    {% include 'home_how.html' %}
+    {% include 'home_contact.html' %}
+</div>
 {% endblock %}
