@@ -22,6 +22,7 @@ class UploadedFile(models.Model):
     user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE)
     file = models.FileField(upload_to='uploads/')
     file_name = models.CharField(max_length=255)
+    chat_configuration_name = models.CharField(max_length=255, blank=True)
     uploaded_at = models.DateTimeField(auto_now_add=True)
     has_deployment = models.BooleanField(default=False)
 
