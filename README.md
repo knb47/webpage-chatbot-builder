@@ -1,12 +1,14 @@
-# Chatbot Builder for Webpages
+# Chatbot Assistant Builder for Webpages
 ## This application is currently under development.
 
-**Project purpose:** To allow business to create custom chat agents and deploy them on their webpages to handle user queries.
-Inspiration: Most chat agents on websites don't allow users to perform actions such as buy a product or cancel an appointment.
+**Inspiration**:
+Many existing chat agents on websites are limited, preventing users from performing actions like purchasing products or canceling appointments.
 
-**Solution:** Create a no-code solution that allows business to deploy chat agents to their webpages.
+**Solution**:
+Develop a no-code platform that allows businesses to seamlessly deploy functional chat agents capable of handling user interactions and actions on their websites.
 
-**How:** Create a chat engine that handles conversational flow in a standardized manner. Then enable business to build a states and actions to feed into the chat engine.
+**How**:
+Design a chat engine that standardizes conversational flow, while allowing businesses to define specific states and actions, which can be integrated into the chat engine to create tailored experiences for users.
 
 **Technologies:** AWS, Django, FastAPI, LangChain
 
