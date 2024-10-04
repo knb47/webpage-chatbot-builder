@@ -28,9 +28,6 @@ services:
       - "15672:15672" # RabbitMQ management port
     env_file:
       - .env.prod
-    environment:
-      RABBITMQ_DEFAULT_USER: admin
-      RABBITMQ_DEFAULT_PASS: demodemodemo
 
   celery:
     build:
