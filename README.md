@@ -10,7 +10,7 @@ Develop a no-code platform that allows businesses to seamlessly deploy functiona
 **How**:
 Design a chat engine that standardizes conversational flow, while allowing businesses to define specific states and actions, which can be integrated into the chat engine to create tailored experiences for users.
 
-**Technologies:** AWS, Django, FastAPI, LangChain
+**Technologies:** Python, AWS, Django, Celery, PostgreSQL, S3, RabbitMQ, LangChain, FastAPI, OpenAI, jQuery, LangChain
 
 # Application Setup and Deployment Guide
 
@@ -21,7 +21,7 @@ This guide will help you set up and run the application in development and produ
 - Docker
 - Docker Compose
 - Poetry
-- Python 3.x (for UI development)
+- Python 3.x
 
 ## Running the Application
 
@@ -37,4 +37,4 @@ docker-compose -f docker-compose.prod.yml up --build
 
 # Application Overview
 
-![Image of application overview.](./application_overview.md)
+![Image of application overview.](./application_overview.png)
