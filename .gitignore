@@ -12,3 +12,5 @@ app_skeleton_code/
 media/
 dev_user_uploads/
 staticfiles/
+node_modules
+backend/ui/dist/

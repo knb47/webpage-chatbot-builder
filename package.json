@@ -1,0 +1,32 @@
+{
+  "dependencies": {
+    "js-yaml": "^4.1.0",
+    "lucide-react": "^0.456.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "reactflow": "^11.11.4"
+  },
+  "devDependencies": {
+    "@babel/core": "^7.26.0",
+    "@babel/preset-env": "^7.26.0",
+    "@babel/preset-react": "^7.26.3",
+    "babel-loader": "^9.2.1",
+    "concurrently": "^9.1.2",
+    "css-loader": "^6.8.1",
+    "style-loader": "^3.3.3",
+    "wait-on": "^8.0.2",
+    "webpack": "^5.95.0",
+    "webpack-bundle-tracker": "^3.1.1",
+    "webpack-cli": "^5.1.4",
+    "webpack-dev-server": "^5.2.0"
+  },
+  "scripts": {
+    "build": "webpack",
+    "build-dev": "webpack --mode development",
+    "build-prod": "webpack --mode production",
+    "start-backend": "poetry run python manage.py runserver",
+    "start-frontend": "wait-on http://localhost:8000 && webpack serve --mode development --open",
+    "prepare-backend": "poetry run python manage.py collectstatic --noinput && poetry run python manage.py migrate",
+    "dev": "npm run prepare-backend && concurrently \"npm run start-backend\" \"npm run start-frontend\""
+  }
+}

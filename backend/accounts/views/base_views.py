@@ -132,6 +132,10 @@ def library_view(request):
     return render(request, 'library.html', {'files': files})
 
 @login_required
+def builder_view(request):
+    return render(request, 'builder.html')
+
+@login_required
 def home_view(request):
     return render(request, 'home.html')
 

@@ -12,7 +12,12 @@ WORKDIR /app
 RUN apt-get update && apt-get install -y \
     netcat-openbsd \
     ca-certificates \
+    curl \
     && rm -rf /var/lib/apt/lists/*
+
+# Install Node.js and npm
+RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
+    && apt-get install -y nodejs
 
 # Install Poetry
 RUN pip install --no-cache-dir poetry
@@ -26,6 +31,9 @@ RUN poetry config virtualenvs.create false \
 
 # Copy the rest of the project files
 COPY . /app/
+
+# Install npm dependencies and build React assets
+RUN cd /app && npm install && npx webpack --mode production
 
 # Create and switch to a non-root user
 RUN adduser --disabled-password --gecos '' myuser

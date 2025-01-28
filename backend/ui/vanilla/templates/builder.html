@@ -1,0 +1,12 @@
+{% extends 'base.html' %}
+{% load render_bundle from webpack_loader %}
+
+{% block title %}Chatbot Builder{% endblock %}
+
+{% block content %}
+<div id="react-root" style="height: 80vh;"></div>
+{% endblock %}
+
+{% block extra_scripts %}
+{% render_bundle 'bundle' %}
+{% endblock %}
