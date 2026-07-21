@@ -1,0 +1,25 @@
+# Local AWS emulation for the deployment pipeline (Lambda + API Gateway + S3).
+#
+# Pinned to a community release: 3.8 does not require a LOCALSTACK_AUTH_TOKEN.
+# The docker socket mount lets LocalStack spawn real containers to execute
+# Lambdas (the v3 docker executor).
+#
+#   docker compose -f infra/localstack/docker-compose.yml up -d
+#   curl http://localhost:4566/_localstack/health
+
+services:
+  localstack:
+    image: localstack/localstack:3.8
+    container_name: chapp-localstack
+    ports:
+      - "4566:4566"            # unified edge port (all services)
+    environment:
+      - SERVICES=lambda,apigateway,s3,iam,sts,logs,cloudwatch
+      - DEBUG=0
+      - LAMBDA_KEEPALIVE_MS=600000   # keep warm containers around for demo snappiness
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock
+      - localstack-data:/var/lib/localstack
+
+volumes:
+  localstack-data:

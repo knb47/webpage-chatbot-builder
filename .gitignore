@@ -17,3 +17,9 @@ backend/ui/dist/
 # Built engine artifact (produced by backend/accounts/deployment/pull_package.sh)
 backend/accounts/deployment/deployment_package.zip
 backend/accounts/deployment/chapp-skeleton/
+
+# Terraform local state
+infra/terraform/.terraform/
+infra/terraform/.terraform.lock.hcl
+*.tfstate
+*.tfstate.*
