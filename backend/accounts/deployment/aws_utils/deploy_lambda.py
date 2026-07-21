@@ -69,7 +69,10 @@ def deploy_user_app(self, user_id, temp_file_path, chat_configuration_name):
         shutil.copyfile(deployment_package_path, temp_package_path)
         logger.info(f"Copied deployment package to {temp_package_path}")
 
-        # Step 2: Add the config file to the deployment package
+        # Step 2: Add the config file to the deployment package.
+        # NamedTemporaryFile is created 0600 and ZipFile.write preserves the
+        # mode; the Lambda runtime user must be able to read it.
+        os.chmod(temp_file_path, 0o644)
         with ZipFile(temp_package_path, 'a') as zipf:
             zipf.write(temp_file_path, os.path.join("app", "config", "config.yaml"))
         logger.info(f"Added config file to {temp_package_path}")
