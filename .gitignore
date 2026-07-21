@@ -14,3 +14,6 @@ dev_user_uploads/
 staticfiles/
 node_modules
 backend/ui/dist/
+# Built engine artifact (produced by backend/accounts/deployment/pull_package.sh)
+backend/accounts/deployment/deployment_package.zip
+backend/accounts/deployment/chapp-skeleton/
