@@ -5,9 +5,11 @@ agent they want to a **Config Copilot** (chat on the left, live YAML on the
 right), save it under a name, and deploy an isolated, working assistant —
 without writing backend code.
 
-This repo is the **control plane** (Django). The agent runtime is the
-**[chat engine](https://github.com/knb47/chapp-skeleton)** (FastAPI +
-LangChain + Claude), packaged and provisioned per tenant by this app.
+This repo is the **control plane and UI**: auth, the Config Copilot builder,
+and deployment management (Django). Every assistant built here is powered by
+the **[chapp-engine](https://github.com/knb47/chapp-engine)** (FastAPI +
+LangChain + Claude), which this app packages with the user's config and
+provisions per tenant.
 
 ```
         this repo (control plane)                     AWS (or LocalStack)
