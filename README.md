@@ -34,7 +34,7 @@ LangChain + Claude), packaged and provisioned per tenant by this app.
 4. The user gets back a working chat URL — a full ChatGPT-style page with a
    live progress rail, served by their own Lambda, powered by Claude.
 
-Teardown and pause are first-class: deployments are tracked in Postgres and
+Teardown is first-class: deployments are tracked in Postgres and
 can be deleted per tenant (`teardown_lambda.py`).
 
 ## Run the full demo locally (no AWS account)
@@ -66,11 +66,11 @@ backend/
     tasks.py           Celery: deploy_chat_app / teardown_chat_app
     deployment/
       pull_package.sh  builds the engine zip from the engine repo
-      aws_utils/       boto3 provisioning: deploy / teardown / pause,
+      aws_utils/       boto3 provisioning: deploy / teardown,
                        clients.py (LocalStack/AWS switch via AWS_ENDPOINT_URL)
   settings/            base / development / demo / production
   ui/vanilla/          server-rendered pages: builder (copilot + YAML editor),
-                       library, deployments
+                       agents (deploy / teardown lifecycle)
 infra/
   localstack/          pinned LocalStack compose (community image)
   terraform/           base infra: IAM role, shared API GW, S3 bucket
