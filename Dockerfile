@@ -52,10 +52,11 @@ RUN cd /app && npm install && npx webpack --mode production
 # Create and switch to a non-root user
 RUN adduser --disabled-password --gecos '' myuser
 
-# Set permissions for the staticfiles directory
-RUN mkdir -p /app/backend/staticfiles && \
-    chown -R myuser:myuser /app/backend/staticfiles && \
-    chmod -R 755 /app/backend/staticfiles
+# Set permissions for the static output directories (STATIC_ROOT is
+# backend/ui/dist — see settings/base.py)
+RUN mkdir -p /app/backend/staticfiles /app/backend/ui/dist && \
+    chown -R myuser:myuser /app/backend/staticfiles /app/backend/ui/dist && \
+    chmod -R 755 /app/backend/staticfiles /app/backend/ui/dist
 
 # Switch to the new user
 USER myuser

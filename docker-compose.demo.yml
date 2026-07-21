@@ -32,6 +32,10 @@ services:
       dockerfile: Dockerfile.celery
     env_file:
       - .env.demo
+    volumes:
+      # Live-mount the engine package so a rebuilt deployment_package.zip is
+      # picked up without rebuilding this image.
+      - ./backend/accounts/deployment:/app/backend/accounts/deployment
     depends_on:
       postgres:
         condition: service_healthy
