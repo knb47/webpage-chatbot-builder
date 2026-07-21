@@ -71,7 +71,7 @@ backend/
       aws_utils/       boto3 provisioning: deploy / teardown,
                        clients.py (LocalStack/AWS switch via AWS_ENDPOINT_URL)
   settings/            base / development / demo / production
-  ui/vanilla/          server-rendered pages: builder (copilot + YAML editor),
+  ui/                  server-rendered pages: builder (copilot + YAML editor),
                        agents (deploy / teardown lifecycle)
 infra/
   localstack/          pinned LocalStack compose (community image)

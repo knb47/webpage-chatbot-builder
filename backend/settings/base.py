@@ -44,21 +44,17 @@ CSRF_TRUSTED_ORIGINS = [
 
 ROOT_URLCONF = 'backend.urls'
 
-# Source directory for static files
+# Server-rendered UI lives in backend/ui (templates + static assets)
 STATICFILES_DIRS = [
-    BASE_DIR / "backend" / "ui" / "vanilla",
+    BASE_DIR / "backend" / "ui" / "static",
 ]
+STATIC_URL = '/static/'
+STATIC_ROOT = BASE_DIR / "staticfiles"   # collectstatic output (gitignored)
 
-# Destination for collectstatic
-# Serve static files
-STATIC_URL = '/backend/ui/dist/'  # URL path where files will be served
-STATIC_ROOT = BASE_DIR / "backend" / "ui" / "dist"
-
-# Templates directory - ensure templates are referenced correctly
 TEMPLATES = [
     {
         'BACKEND': 'django.template.backends.django.DjangoTemplates',
-        'DIRS': [BASE_DIR / 'backend' / 'ui' / 'vanilla' / 'templates'],  # Templates directory relative to project root
+        'DIRS': [BASE_DIR / 'backend' / 'ui' / 'templates'],
         'APP_DIRS': True,
         'OPTIONS': {
             'context_processors': [

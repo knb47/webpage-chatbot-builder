@@ -44,11 +44,10 @@ COPY . /app/
 # Create and switch to a non-root user
 RUN adduser --disabled-password --gecos '' myuser
 
-# Set permissions for the static output directories (STATIC_ROOT is
-# backend/ui/dist — see settings/base.py)
-RUN mkdir -p /app/backend/staticfiles /app/backend/ui/dist && \
-    chown -R myuser:myuser /app/backend/staticfiles /app/backend/ui/dist && \
-    chmod -R 755 /app/backend/staticfiles /app/backend/ui/dist
+# Static output directory (STATIC_ROOT — see settings/base.py)
+RUN mkdir -p /app/staticfiles && \
+    chown -R myuser:myuser /app/staticfiles && \
+    chmod -R 755 /app/staticfiles
 
 # Switch to the new user
 USER myuser
