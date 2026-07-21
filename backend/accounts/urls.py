@@ -17,7 +17,8 @@ urlpatterns = [
   path('deployments/', views.deployments_view, name='deployments'),
   
   # Non-API routes
-  path('library/', views.library_view, name='library'),
+  path('agents/', views.agents_view, name='agents'),
+  path('library/', views.library_view, name='library'),            # redirects to agents
   path('signup/', views.SignUpView.as_view(), name='signup'),
   path('upload/', views.FileUploadView.as_view(), name='file-upload'),
   path('builder/', views.builder_view, name='builder'),

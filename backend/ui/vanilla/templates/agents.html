@@ -1,0 +1,211 @@
+{% extends 'base.html' %}
+
+{% block title %}My Agents{% endblock %}
+
+{% block content %}
+<div class="agents-head">
+  <h1 class="page-title">My Agents</h1>
+  <a href="{% url 'builder' %}" class="btn btn-dark btn-sm">+ Build a new agent</a>
+</div>
+
+{% include 'notification.html' %}
+
+<!-- Confirm modal -->
+<div class="modal fade" id="genericModal" tabindex="-1" aria-hidden="true">
+  <div class="modal-dialog">
+    <div class="modal-content">
+      <div class="modal-header">
+        <h5 class="modal-title">Confirm</h5>
+        <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+      </div>
+      <div class="modal-body">
+        <p id="genericModalMessage"></p>
+        <p class="fw-bold" id="genericModalDetail"></p>
+      </div>
+      <div class="modal-footer">
+        <button type="button" class="btn btn-secondary" data-bs-dismiss="modal">Cancel</button>
+        <button type="button" class="btn btn-primary" id="genericModalConfirmButton">Confirm</button>
+      </div>
+    </div>
+  </div>
+</div>
+
+<ul id="agent-list" class="agent-list">
+  {% for row in rows %}
+    <li class="agent-card" id="agent-{{ row.file.id }}"
+        data-file-id="{{ row.file.id }}"
+        {% if row.deployment %}data-deployment-id="{{ row.deployment.id }}"{% endif %}>
+      <div class="agent-info">
+        <p class="agent-name">{{ row.file.chat_configuration_name }}</p>
+        <p class="agent-sub">{{ row.file.file_name }} · uploaded {{ row.file.uploaded_at|date:"M j, Y, g:i a" }}</p>
+        {% if row.deployment and row.deployment.status == 'active' %}
+          <p class="agent-status live"><span class="dot"></span> Live —
+            <a href="{{ row.deployment.endpoint }}" target="_blank" rel="noopener">open chat ↗</a></p>
+        {% elif row.deployment %}
+          <p class="agent-status idle"><span class="dot"></span> Inactive (was deployed)</p>
+        {% else %}
+          <p class="agent-status none"><span class="dot"></span> Not deployed</p>
+        {% endif %}
+      </div>
+      <div class="agent-actions">
+        {% if row.deployment and row.deployment.status == 'active' %}
+          <button class="btn btn-outline-secondary btn-sm act-teardown">End</button>
+        {% else %}
+          <button class="btn btn-dark btn-sm act-deploy">Deploy</button>
+        {% endif %}
+        {% if row.deployment and row.deployment.status != 'active' %}
+          <button class="btn btn-outline-danger btn-sm act-del-deployment" title="Remove the deployment record">Clear record</button>
+        {% endif %}
+        <button class="btn btn-outline-danger btn-sm act-del-file" title="Delete this config">Delete</button>
+        <button class="btn btn-secondary btn-sm act-busy" style="display:none;" disabled>
+          <span class="spinner-border spinner-border-sm"></span> <span class="busy-label">Working…</span>
+        </button>
+      </div>
+    </li>
+  {% empty %}
+    <li class="agent-empty">No agents yet — <a href="{% url 'builder' %}">build one with the Config Copilot</a>.</li>
+  {% endfor %}
+
+  {% for d in orphans %}
+    <li class="agent-card orphan" id="orphan-{{ d.id }}" data-deployment-id="{{ d.id }}">
+      <div class="agent-info">
+        <p class="agent-name">{{ d.chatbot_name }}</p>
+        <p class="agent-sub">config deleted from library · deployed {{ d.deployed_at|date:"M j, Y, g:i a" }}</p>
+        {% if d.status == 'active' %}
+          <p class="agent-status live"><span class="dot"></span> Live —
+            <a href="{{ d.endpoint }}" target="_blank" rel="noopener">open chat ↗</a></p>
+        {% else %}
+          <p class="agent-status idle"><span class="dot"></span> Inactive</p>
+        {% endif %}
+      </div>
+      <div class="agent-actions">
+        {% if d.status == 'active' %}
+          <button class="btn btn-outline-secondary btn-sm act-teardown">End</button>
+        {% else %}
+          <button class="btn btn-outline-danger btn-sm act-del-deployment">Clear record</button>
+        {% endif %}
+        <button class="btn btn-secondary btn-sm act-busy" style="display:none;" disabled>
+          <span class="spinner-border spinner-border-sm"></span> <span class="busy-label">Working…</span>
+        </button>
+      </div>
+    </li>
+  {% endfor %}
+</ul>
+
+<style>
+  .agents-head { display: flex; align-items: center; justify-content: space-between; margin-bottom: 18px; }
+  .page-title { font-size: 1.4rem; font-weight: 700; margin: 0; }
+  .agent-list { list-style: none; padding: 0; margin: 0; display: flex; flex-direction: column; gap: 12px; max-width: 860px; }
+  .agent-card { display: flex; justify-content: space-between; align-items: center; gap: 14px; padding: 16px 18px;
+    border: 1px solid #e5e5e5; border-radius: 14px; background: #fff; box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+  .agent-card.orphan { background: #fffdf5; border-color: #eee2b8; }
+  .agent-name { font-weight: 600; font-size: 1.02rem; margin: 0; }
+  .agent-sub { color: #888; font-size: .8rem; margin: 2px 0 6px; }
+  .agent-status { font-size: .85rem; margin: 0; display: flex; align-items: center; gap: 6px; }
+  .agent-status .dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; }
+  .agent-status.live { color: #1a7f37; } .agent-status.live .dot { background: #2da44e; }
+  .agent-status.idle { color: #888; } .agent-status.idle .dot { background: #bbb; }
+  .agent-status.none { color: #999; } .agent-status.none .dot { background: #ddd; }
+  .agent-actions { display: flex; gap: 8px; flex-shrink: 0; }
+  .agent-actions .btn { border-radius: 9px; }
+  .agent-empty { color: #888; padding: 24px; text-align: center; border: 1px dashed #ddd; border-radius: 14px; }
+</style>
+{% endblock %}
+
+{% block extra_scripts %}
+<script>
+document.addEventListener('DOMContentLoaded', function () {
+  const modal = new bootstrap.Modal(document.getElementById('genericModal'));
+  let confirmCallback = null;
+  const CSRF = '{{ csrf_token }}';
+
+  function confirmThen(message, detail, cb) {
+    confirmCallback = cb;
+    document.getElementById('genericModalMessage').textContent = message;
+    document.getElementById('genericModalDetail').textContent = detail || '';
+    modal.show();
+  }
+  document.getElementById('genericModalConfirmButton').addEventListener('click', function () {
+    modal.hide();
+    if (confirmCallback) { confirmCallback(); confirmCallback = null; }
+  });
+
+  function setBusy(card, label) {
+    card.querySelectorAll('.agent-actions .btn:not(.act-busy)').forEach(b => b.style.display = 'none');
+    const busy = card.querySelector('.act-busy');
+    busy.querySelector('.busy-label').textContent = label;
+    busy.style.display = 'inline-block';
+  }
+
+  async function post(url) {
+    const res = await fetch(url, { method: 'POST', headers: { 'X-CSRFToken': CSRF } });
+    return res.json();
+  }
+
+  function poll(url, onDone, onFail) {
+    const check = async () => {
+      try {
+        const data = await (await fetch(url)).json();
+        if (data.status === 'pending') setTimeout(check, 4000);
+        else if (data.status === 'completed') onDone(data);
+        else onFail(data.error || data.message || 'unknown error');
+      } catch (e) { onFail(e.message); }
+    };
+    check();
+  }
+
+  document.getElementById('agent-list').addEventListener('click', function (e) {
+    const btn = e.target.closest('button');
+    if (!btn) return;
+    const card = btn.closest('.agent-card');
+    if (!card) return;
+    const fileId = card.dataset.fileId;
+    const deploymentId = card.dataset.deploymentId;
+    const name = card.querySelector('.agent-name').textContent;
+
+    if (btn.classList.contains('act-deploy')) {
+      confirmThen('Deploy this agent to its own Lambda?', name, async () => {
+        setBusy(card, 'Deploying…');
+        try {
+          const data = await post(`/account/deploy/${fileId}/`);
+          if (!data.task_id) throw new Error(data.error || 'deploy refused');
+          poll(`/account/deployment_status/${data.task_id}/`,
+            () => { showNotification(`'${name}' deployed!`, 'success'); location.reload(); },
+            (err) => { showNotification(`Deploy failed: ${err}`, 'error'); location.reload(); });
+        } catch (err) {
+          showNotification(`Deploy failed: ${err.message}`, 'error'); location.reload();
+        }
+      });
+    } else if (btn.classList.contains('act-teardown')) {
+      confirmThen('End this deployment? The chat URL will stop working.', name, async () => {
+        setBusy(card, 'Ending…');
+        try {
+          const data = await post(`/account/teardown/${deploymentId}/`);
+          if (!data.task_id) throw new Error(data.message || data.error || 'teardown refused');
+          poll(`/account/teardown_status/${data.task_id}/`,
+            () => { showNotification(`'${name}' ended.`, 'success'); location.reload(); },
+            (err) => { showNotification(`Teardown failed: ${err}`, 'error'); location.reload(); });
+        } catch (err) {
+          showNotification(`Teardown failed: ${err.message}`, 'error'); location.reload();
+        }
+      });
+    } else if (btn.classList.contains('act-del-deployment')) {
+      confirmThen('Remove this deployment record?', name, async () => {
+        setBusy(card, 'Removing…');
+        const data = await post(`/account/delete-deployment/${deploymentId}/`);
+        if (data.success) { showNotification('Deployment record removed.', 'success'); location.reload(); }
+        else { showNotification(`Failed: ${data.error || 'unknown error'}`, 'error'); location.reload(); }
+      });
+    } else if (btn.classList.contains('act-del-file')) {
+      const extra = deploymentId ? ' Its deployment record will remain until cleared.' : '';
+      confirmThen('Delete this config from your library?' + extra, name, async () => {
+        setBusy(card, 'Deleting…');
+        const data = await post(`/account/delete-file/${fileId}/`);
+        if (data.success) { showNotification(`'${name}' deleted.`, 'success'); location.reload(); }
+        else { showNotification(`Failed: ${data.error || 'unknown error'}`, 'error'); location.reload(); }
+      });
+    }
+  });
+});
+</script>
+{% endblock %}

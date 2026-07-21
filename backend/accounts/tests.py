@@ -279,3 +279,67 @@ class SessionTests(TestCase):
         other = make_user("other")
         s = BuilderSession.objects.create(user=other, title="theirs")
         self.assertEqual(self.client.get(f"/api/accounts/copilot/sessions/{s.id}/").status_code, 404)
+
+
+class AgentsPageTests(TestCase):
+    """The unified lifecycle page + the orphaned-deployment bug fixes."""
+
+    def setUp(self):
+        self.user = make_user("agents")
+        self.client.force_login(self.user)
+
+    def test_old_pages_redirect_to_agents(self):
+        self.assertRedirects(self.client.get("/account/library/"), "/account/agents/")
+        self.assertRedirects(self.client.get("/account/deployments/"), "/account/agents/")
+
+    def test_orphan_deployment_is_listed(self):
+        from .models import Deployment
+        d = Deployment.objects.create(  # config_file=None: library entry deleted
+            user=self.user, chatbot_name="ghost", config_file_path="x",
+            config_file_name="x", endpoint="http://e/", status="active")
+        res = self.client.get("/account/agents/")
+        self.assertContains(res, "ghost")
+        self.assertContains(res, "config deleted from library")
+
+    def test_delete_deployment_with_deleted_config(self):
+        """Regression: used to 500 (NoneType.has_deployment) when the library
+        config was deleted before the deployment record."""
+        from .models import Deployment
+        d = Deployment.objects.create(
+            user=self.user, chatbot_name="ghost", config_file=None,
+            config_file_path="x", config_file_name="x",
+            endpoint="http://e/", status="inactive")
+        res = self.client.post(f"/account/delete-deployment/{d.id}/")
+        self.assertEqual(res.status_code, 200)
+        self.assertTrue(res.json()["success"])
+        self.assertFalse(Deployment.objects.filter(id=d.id).exists())
+
+    def test_teardown_missing_lambda_is_idempotent(self):
+        """Regression: teardown raised when the Lambda was already gone."""
+        from .deployment.aws_utils import teardown_lambda
+        from .models import Deployment
+        d = Deployment.objects.create(
+            user=self.user, chatbot_name="ghost", config_file=None,
+            config_file_path="x", config_file_name="x",
+            endpoint="http://e/", status="active", resource_name="fn")
+
+        class NotFound(Exception):
+            pass
+
+        lam = mock.Mock()
+        lam.exceptions.ResourceNotFoundException = NotFound
+        lam.get_function.side_effect = NotFound()          # wait loop: already gone
+        lam.delete_function.side_effect = NotFound()       # delete: already gone
+        lam.remove_permission.side_effect = NotFound()
+        api = mock.Mock()
+        api.get_resources.return_value = {"items": []}
+
+        with mock.patch.dict("os.environ", {"AWS_REGION": "us-east-1",
+                                            "EXISTING_API_GATEWAY_ID": "abc"}), \
+             mock.patch.object(teardown_lambda, "aws_client",
+                               side_effect=lambda svc, r: lam if svc == "lambda" else api):
+            result = teardown_lambda.teardown_user_app(self.user.id, d)
+
+        self.assertEqual(result["status"], "completed")
+        d.refresh_from_db()
+        self.assertEqual(d.status, "inactive")

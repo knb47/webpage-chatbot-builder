@@ -42,7 +42,7 @@
     <footer class="save-bar">
       <input id="bot-name" class="form-control" placeholder="Chatbot name (e.g. sales_screener)" />
       <button id="save-btn" class="btn btn-success">Save to library</button>
-      <a href="{% url 'library' %}" class="btn btn-outline-secondary">Library →</a>
+      <a href="{% url 'agents' %}" class="btn btn-outline-secondary">My Agents →</a>
     </footer>
     <div id="save-result" class="muted" style="padding: 4px 10px 8px; white-space: pre-wrap;"></div>
   </section>
@@ -264,7 +264,7 @@
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || res.statusText);
       saveResult.innerHTML = 'Saved as <strong>' + data.file_name +
-        '</strong> — deploy it from the <a href="{% url "library" %}">Library</a> page.';
+        '</strong> — deploy it from the <a href="{% url "agents" %}">My Agents</a> page.';
     } catch (err) {
       saveResult.textContent = 'Save failed: ' + err.message;
     } finally {

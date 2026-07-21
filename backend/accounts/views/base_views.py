@@ -125,11 +125,27 @@ def delete_file(request, file_id):
     return JsonResponse({'success': False}, status=400)
 
 @login_required
+def agents_view(request):
+    """One page for the whole lifecycle: configs + their deployments.
+
+    Each config row carries its latest deployment (if any); deployments whose
+    config was deleted from the library surface separately as orphans so they
+    can still be ended/cleaned up.
+    """
+    files = UploadedFile.objects.filter(user=request.user).order_by('-uploaded_at')
+    deployments = Deployment.objects.filter(user=request.user).order_by('deployed_at')
+    dep_by_file = {}
+    for d in deployments:
+        if d.config_file_id:
+            dep_by_file[d.config_file_id] = d  # latest wins (ordered ascending)
+    rows = [{'file': f, 'deployment': dep_by_file.get(f.id)} for f in files]
+    orphans = [d for d in deployments if not d.config_file_id]
+    return render(request, 'agents.html', {'rows': rows, 'orphans': orphans})
+
+
+@login_required
 def library_view(request):
-    files = UploadedFile.objects.filter(user=request.user)
-    for file in files:
-        file.deployed = Deployment.objects.filter(config_file_path=file.file_name, user=request.user).exists()
-    return render(request, 'library.html', {'files': files})
+    return redirect('agents')
 
 @login_required
 def builder_view(request):
@@ -151,8 +167,7 @@ def custom_logout(request):
     
 @login_required
 def deployments_view(request):
-    deployments = Deployment.objects.filter(user=request.user)
-    return render(request, 'deployments.html', {'deployments': deployments})
+    return redirect('agents')
 
 @login_required
 def delete_deployment(request, deployment_id):
@@ -160,8 +175,10 @@ def delete_deployment(request, deployment_id):
         try:
             with transaction.atomic():
               deployment = get_object_or_404(Deployment, id=deployment_id, user=request.user)
-              deployment.config_file.has_deployment = False
-              deployment.config_file.save(update_fields=['has_deployment'])
+              # config_file is SET_NULL — it may already be deleted from the library.
+              if deployment.config_file:
+                  deployment.config_file.has_deployment = False
+                  deployment.config_file.save(update_fields=['has_deployment'])
               deployment.delete()
               return JsonResponse({'success': True})
         except Exception as e:

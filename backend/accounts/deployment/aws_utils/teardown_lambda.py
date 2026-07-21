@@ -49,13 +49,14 @@ def teardown_user_app(user_id, deployment):
         # Wait for any ongoing updates to complete
         wait_for_deletion_to_complete(lambda_client, function_name)
 
-        # Step 1: Delete the Lambda function
+        # Step 1: Delete the Lambda function. Idempotent: if it's already gone
+        # (deleted out-of-band, or the emulator was restarted), that's the
+        # desired end state — continue cleaning up instead of failing.
         try:
             lambda_client.delete_function(FunctionName=function_name)
             logger.info(f"Deleted Lambda function {function_name}")
         except lambda_client.exceptions.ResourceNotFoundException:
-            logger.info(f"Lambda function {function_name} does not exist. Skipping deletion.")
-            raise ValueError("Lambda function not found for function name: {function_name}.")
+            logger.info(f"Lambda function {function_name} already gone. Continuing teardown.")
 
         # Step 2: Remove API Gateway configurations
         api_id = os.environ.get('EXISTING_API_GATEWAY_ID')
