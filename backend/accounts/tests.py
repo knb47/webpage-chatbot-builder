@@ -10,6 +10,7 @@ from django.contrib.auth import get_user_model
 from django.core.files.base import ContentFile
 from django.test import TestCase
 
+from . import copilot
 from .models import Deployment, UploadedFile
 from .deployment.aws_utils import clients
 
@@ -107,3 +108,55 @@ class DeployTaskTests(TestCase):
         self.assertEqual(Deployment.objects.count(), 0)
         self.uploaded.refresh_from_db()
         self.assertFalse(self.uploaded.has_deployment)
+
+
+class CopilotTests(TestCase):
+    """Config Copilot: fenced-YAML extraction and the save endpoint."""
+
+    def _mock_claude(self, text):
+        resp = mock.Mock()
+        resp.json.return_value = {"content": [{"type": "text", "text": text}]}
+        resp.raise_for_status = mock.Mock()
+        return resp
+
+    def test_chat_extracts_fenced_yaml(self):
+        text = "Here you go!\n```yaml\nbot_name: \"Test\"\nstates: []\n```\nAnything else?"
+        with mock.patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test"}), \
+             mock.patch.object(copilot.requests, "post", return_value=self._mock_claude(text)):
+            reply, yaml_text = copilot.chat([{"role": "user", "content": "make a bot"}], "")
+        self.assertIn("Here you go!", reply)
+        self.assertNotIn("```", reply)
+        self.assertIn('bot_name: "Test"', yaml_text)
+
+    def test_chat_without_fence_returns_no_yaml(self):
+        with mock.patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test"}), \
+             mock.patch.object(copilot.requests, "post", return_value=self._mock_claude("What audience?")):
+            reply, yaml_text = copilot.chat([{"role": "user", "content": "hi"}], "")
+        self.assertEqual(reply, "What audience?")
+        self.assertIsNone(yaml_text)
+
+    def test_save_endpoint_creates_uploaded_file(self):
+        import json
+        user = make_user("saver")
+        self.client.force_login(user)
+        res = self.client.post(
+            "/api/accounts/copilot/save/",
+            data=json.dumps({"chatbot_name": "My Bot!", "yaml": 'bot_name: "My Bot"\n'}),
+            content_type="application/json",
+        )
+        self.assertEqual(res.status_code, 200)
+        data = res.json()
+        self.assertEqual(data["file_name"], "my_bot.yaml")
+        self.assertTrue(UploadedFile.objects.filter(user=user, chat_configuration_name="My Bot!").exists())
+
+    def test_save_rejects_duplicate_name(self):
+        import json
+        user = make_user("saver2")
+        self.client.force_login(user)
+        for expected in (200, 409):
+            res = self.client.post(
+                "/api/accounts/copilot/save/",
+                data=json.dumps({"chatbot_name": "dup", "yaml": "x: 1\n"}),
+                content_type="application/json",
+            )
+            self.assertEqual(res.status_code, expected)

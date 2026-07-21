@@ -26,4 +26,8 @@ urlpatterns = [
   path('delete-deployment/<int:deployment_id>/', views.delete_deployment, name='delete_deployment'),
   path('teardown/<int:deployment_id>/', views.teardown_view, name='teardown'),
   path('teardown_status/<str:task_id>/', views.teardown_status_view, name='teardown_status'),
+
+  # Config copilot (builder page backend)
+  path('copilot/chat/', views.copilot_chat_view, name='copilot_chat'),
+  path('copilot/save/', views.copilot_save_view, name='copilot_save'),
 ]

@@ -16,18 +16,7 @@ INSTALLED_APPS = [
     'rest_framework',
     'backend.accounts',
     'storages',
-    'webpack_loader',
 ]
-
-WEBPACK_LOADER = {
-    'DEFAULT': {
-        'BUNDLE_DIR_NAME': 'ui/vanilla/js/bundled_imports/',
-        'STATS_FILE': BASE_DIR / 'webpack-stats.json',
-        'TIMEOUT': None,
-        'POLL_INTERVAL': 0.1,
-        'IGNORE': [r'.+\.hot-update.js', r'.+\.map'],
-    }
-}
 
 MIDDLEWARE = [
     'corsheaders.middleware.CorsMiddleware',

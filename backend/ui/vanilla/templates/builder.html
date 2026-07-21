@@ -1,12 +1,146 @@
 {% extends 'base.html' %}
-{% load render_bundle from webpack_loader %}
 
-{% block title %}Chatbot Builder{% endblock %}
+{% block title %}Config Builder{% endblock %}
 
 {% block content %}
-<div id="react-root" style="height: 80vh;"></div>
+<div class="builder-wrap">
+  <!-- Left: config copilot chat -->
+  <section class="pane chat-pane">
+    <header class="pane-head">
+      <strong>Config Copilot</strong>
+      <span class="muted">describe your agent — I'll write the config</span>
+    </header>
+    <div id="chat-log" class="chat-log">
+      <div class="msg assistant">Hi! Tell me about the chat agent you want to build —
+        who is it for and what should it do? I'll draft the config on the right as we talk.</div>
+    </div>
+    <form id="chat-form" class="chat-input">
+      <textarea id="chat-text" rows="2" placeholder="e.g. A screening bot that vets sales candidates in 4 stages…" required></textarea>
+      <button type="submit" class="btn btn-dark" id="chat-send">Send</button>
+    </form>
+  </section>
+
+  <!-- Right: the working YAML -->
+  <section class="pane yaml-pane">
+    <header class="pane-head">
+      <strong>config.yaml</strong>
+      <span id="yaml-status" class="muted"></span>
+    </header>
+    <textarea id="yaml-editor" spellcheck="false">{{ starter_yaml }}</textarea>
+    <footer class="save-bar">
+      <input id="bot-name" class="form-control" placeholder="Chatbot name (e.g. sales_screener)" />
+      <button id="save-btn" class="btn btn-success">Save to library</button>
+      <a href="{% url 'deployments' %}" class="btn btn-outline-secondary">Deployments →</a>
+    </footer>
+    <div id="save-result" class="muted" style="padding: 4px 2px;"></div>
+  </section>
+</div>
+
+<style>
+  .builder-wrap { display: grid; grid-template-columns: minmax(320px, 5fr) minmax(360px, 6fr); gap: 16px; height: calc(100vh - 140px); }
+  .pane { display: flex; flex-direction: column; border: 1px solid #d9d9d9; border-radius: 10px; background: #fff; overflow: hidden; }
+  .pane-head { padding: 10px 14px; border-bottom: 1px solid #eee; display: flex; gap: 10px; align-items: baseline; }
+  .muted { color: #888; font-size: 0.85em; }
+  .chat-log { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
+  .msg { padding: 9px 12px; border-radius: 10px; max-width: 92%; white-space: pre-wrap; line-height: 1.4; }
+  .msg.user { background: #1a1a1a; color: #fff; align-self: flex-end; }
+  .msg.assistant { background: #f2f2f2; align-self: flex-start; }
+  .msg.thinking { color: #888; font-style: italic; background: transparent; }
+  .chat-input { display: flex; gap: 8px; padding: 10px; border-top: 1px solid #eee; }
+  .chat-input textarea { flex: 1; resize: none; border: 1px solid #ccc; border-radius: 8px; padding: 8px 10px; }
+  #yaml-editor { flex: 1; border: 0; padding: 14px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 13px; line-height: 1.45; resize: none; outline: none; background: #fafafa; }
+  .save-bar { display: flex; gap: 8px; padding: 10px; border-top: 1px solid #eee; }
+  .save-bar input { max-width: 320px; }
+  @media (max-width: 900px) { .builder-wrap { grid-template-columns: 1fr; height: auto; } #yaml-editor { min-height: 320px; } }
+</style>
 {% endblock %}
 
 {% block extra_scripts %}
-{% render_bundle 'bundle' %}
+<script>
+(function () {
+  const log = document.getElementById('chat-log');
+  const form = document.getElementById('chat-form');
+  const text = document.getElementById('chat-text');
+  const send = document.getElementById('chat-send');
+  const editor = document.getElementById('yaml-editor');
+  const yamlStatus = document.getElementById('yaml-status');
+  const saveBtn = document.getElementById('save-btn');
+  const botName = document.getElementById('bot-name');
+  const saveResult = document.getElementById('save-result');
+  const messages = [];
+
+  function csrf() {
+    const m = document.cookie.match(/csrftoken=([^;]+)/);
+    return m ? m[1] : '';
+  }
+  function addMsg(role, content, cls) {
+    const div = document.createElement('div');
+    div.className = 'msg ' + (cls || role);
+    div.textContent = content;
+    log.appendChild(div);
+    log.scrollTop = log.scrollHeight;
+    return div;
+  }
+
+  form.addEventListener('submit', async function (e) {
+    e.preventDefault();
+    const content = text.value.trim();
+    if (!content) return;
+    text.value = '';
+    send.disabled = true;
+    addMsg('user', content);
+    messages.push({ role: 'user', content: content });
+    const thinking = addMsg('assistant', 'Thinking…', 'assistant thinking');
+    try {
+      const res = await fetch("{% url 'copilot_chat' %}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+        body: JSON.stringify({ messages: messages, current_yaml: editor.value }),
+      });
+      const data = await res.json();
+      thinking.remove();
+      if (!res.ok) throw new Error(data.error || res.statusText);
+      addMsg('assistant', data.reply);
+      messages.push({ role: 'assistant', content: data.reply + (data.yaml ? '\n\n```yaml\n' + data.yaml + '```' : '') });
+      if (data.yaml) {
+        editor.value = data.yaml;
+        yamlStatus.textContent = 'updated ' + new Date().toLocaleTimeString();
+      }
+    } catch (err) {
+      thinking.remove();
+      addMsg('assistant', 'Something went wrong: ' + err.message);
+    } finally {
+      send.disabled = false;
+      text.focus();
+    }
+  });
+
+  // Enter sends, Shift+Enter for newline
+  text.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
+  });
+
+  saveBtn.addEventListener('click', async function () {
+    saveResult.textContent = '';
+    const name = botName.value.trim();
+    if (!name) { saveResult.textContent = 'Give your chatbot a name first.'; return; }
+    saveBtn.disabled = true;
+    try {
+      const res = await fetch("{% url 'copilot_save' %}", {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
+        body: JSON.stringify({ chatbot_name: name, yaml: editor.value }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || res.statusText);
+      saveResult.innerHTML = 'Saved as <strong>' + data.file_name +
+        '</strong> — deploy it from the <a href="{% url "deployments" %}">Deployments</a> page.';
+    } catch (err) {
+      saveResult.textContent = 'Save failed: ' + err.message;
+    } finally {
+      saveBtn.disabled = false;
+    }
+  });
+})();
+</script>
 {% endblock %}

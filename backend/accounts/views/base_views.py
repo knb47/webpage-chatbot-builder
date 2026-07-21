@@ -133,7 +133,8 @@ def library_view(request):
 
 @login_required
 def builder_view(request):
-    return render(request, 'builder.html')
+    # copilot is imported at the bottom of this module; resolved at call time.
+    return render(request, 'builder.html', {'starter_yaml': copilot.STARTER_YAML})
 
 @login_required
 def home_view(request):
@@ -199,3 +200,53 @@ def password_reset_request(request):
     else:
         form = PasswordResetForm()
     return render(request, 'password_reset.html', {'form': form})
+
+# --------------------------------------------------------------------------
+# Config copilot (the builder page): chat with Claude to write the config,
+# then save the YAML as an UploadedFile ready for deployment.
+# --------------------------------------------------------------------------
+
+from django.core.files.base import ContentFile
+from django.views.decorators.http import require_POST
+from .. import copilot
+
+
+@login_required
+@require_POST
+def copilot_chat_view(request):
+    try:
+        data = json.loads(request.body)
+        reply, yaml_text = copilot.chat(
+            data.get('messages', []),
+            data.get('current_yaml', ''),
+        )
+        return JsonResponse({'reply': reply, 'yaml': yaml_text})
+    except Exception as e:
+        logger.error(f"Copilot chat failed: {e}")
+        return JsonResponse({'error': str(e)}, status=502)
+
+
+@login_required
+@require_POST
+def copilot_save_view(request):
+    try:
+        data = json.loads(request.body)
+        name = (data.get('chatbot_name') or '').strip()
+        yaml_text = data.get('yaml') or ''
+        if not name or not yaml_text:
+            return JsonResponse({'error': 'chatbot_name and yaml are required'}, status=400)
+
+        file_name = re.sub(r'[^A-Za-z0-9_-]+', '_', name).strip('_').lower() + '.yaml'
+        if UploadedFile.objects.filter(user=request.user, chat_configuration_name=name).exists():
+            return JsonResponse({'error': f'A config named "{name}" already exists.'}, status=409)
+
+        uploaded = UploadedFile(user=request.user, file_name=file_name, chat_configuration_name=name)
+        uploaded.file.save(file_name, ContentFile(yaml_text.encode('utf-8')), save=True)
+        return JsonResponse({'file_id': uploaded.id, 'file_name': file_name})
+    except Exception as e:
+        logger.error(f"Copilot save failed: {e}")
+        return JsonResponse({'error': str(e)}, status=500)
+
+
+def copilot_starter_yaml():
+    return copilot.STARTER_YAML

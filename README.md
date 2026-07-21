@@ -1,9 +1,9 @@
 # Chapp — No-Code AI Agent Builder
 
-A no-code platform for creating custom AI chat agents. Users design an agent's
-conversation flow in a drag-and-drop builder, define business logic as a state
-machine, and deploy an isolated, working assistant — without writing backend
-code.
+A no-code platform for creating custom AI chat agents. Users describe the
+agent they want to a **Config Copilot** (chat on the left, live YAML on the
+right), save it under a name, and deploy an isolated, working assistant —
+without writing backend code.
 
 This repo is the **control plane** (Django). The agent runtime is the
 **[chat engine](https://github.com/knb47/chapp-skeleton)** (FastAPI +
@@ -12,7 +12,7 @@ LangChain + Claude), packaged and provisioned per tenant by this app.
 ```
         this repo (control plane)                     AWS (or LocalStack)
 ┌──────────────────────────────────────┐      ┌────────────────────────────────┐
-│  Django + DRF        React builder   │      │  API Gateway (shared)          │
+│  Django + DRF       Config Copilot   │      │  API Gateway (shared)          │
 │  auth · uploads · deployments UI     │      │    /user/{id}/agent/{v}/{bot}  │
 │           │                          │      │        │                       │
 │           ▼                          │      │        ▼                       │
@@ -25,9 +25,9 @@ LangChain + Claude), packaged and provisioned per tenant by this app.
 
 ## What happens on "Deploy"
 
-1. The React builder (reactflow) turns the visual decision graph into the
-   engine's YAML state-machine format (`generateYaml.js`).
-2. The config uploads to S3; Django records it and queues a Celery task.
+1. The Config Copilot (Claude) turns a conversation into the engine's YAML
+   state-machine format; the user watches and edits the config live.
+2. On save, the config uploads to S3; deploying queues a Celery task.
 3. The worker packages the [engine](https://github.com/knb47/chapp-skeleton)
    with the tenant's config, then provisions an **isolated Lambda** and wires
    it into a shared **API Gateway** under the tenant's route.
@@ -51,7 +51,7 @@ make demo-infra     # LocalStack up + terraform apply (IAM, API GW, S3)
 make demo-package   # build the engine Lambda zip from source (Dockerized)
 make demo-up        # Django + Celery + RabbitMQ + Postgres
 
-# then: http://localhost:8000 — register, build a flow, deploy, chat.
+# then: http://localhost:8000 — register, chat with the copilot, deploy, chat.
 ```
 
 Cloud mapping for the local stack: web/celery containers ↔ ECS services,
@@ -62,13 +62,15 @@ Postgres ↔ RDS, RabbitMQ ↔ Amazon MQ, LocalStack ↔ Lambda / API Gateway / 
 ```
 backend/
   accounts/            users, uploads, deployments (models, DRF views, tasks)
+    copilot.py         Config Copilot: Claude-backed config authoring
     tasks.py           Celery: deploy_chat_app / teardown_chat_app
     deployment/
       pull_package.sh  builds the engine zip from the engine repo
       aws_utils/       boto3 provisioning: deploy / teardown / pause,
                        clients.py (LocalStack/AWS switch via AWS_ENDPOINT_URL)
   settings/            base / development / demo / production
-  ui/react/            drag-and-drop flow builder (reactflow) + YAML codegen
+  ui/vanilla/          server-rendered pages: builder (copilot + YAML editor),
+                       library, deployments
 infra/
   localstack/          pinned LocalStack compose (community image)
   terraform/           base infra: IAM role, shared API GW, S3 bucket
@@ -79,7 +81,6 @@ docker-compose.demo.yml  full local stack
 
 - **Backend:** `poetry install`, then `python manage.py runserver` (uses
   `settings/development.py`: SQLite + mock deploy views, no AWS needed).
-- **Frontend:** `npm install && npm run start-dev` (webpack HMR on :3000).
 - **Real vs mock:** `DJANGO_ENV=production` selects the real views/tasks;
   anything else uses `views/mock_views.py` for offline UI work.
 
@@ -95,6 +96,6 @@ clients, and the LocalStack/AWS endpoint formatting.
 ## Tech stack
 
 Python · Django + DRF · Celery + RabbitMQ · PostgreSQL · boto3 ·
-Terraform + LocalStack · AWS Lambda / API Gateway / S3 · React (reactflow) ·
-webpack · Docker — LLM runtime: LangChain + Claude (in the
+Terraform + LocalStack · AWS Lambda / API Gateway / S3 · Docker —
+LLM: Claude (Config Copilot here; LangChain agent runtime in the
 [engine repo](https://github.com/knb47/chapp-skeleton))

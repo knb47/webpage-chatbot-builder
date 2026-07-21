@@ -19,7 +19,6 @@ RUN if [ -f /tmp/ca/corp-ca-bundle.pem ]; then \
     fi
 ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
     REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
-    NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt \
     PIP_TRUSTED_HOST="pypi.org files.pythonhosted.org pypi.python.org"
 
 # Install system dependencies
@@ -28,10 +27,6 @@ RUN apt-get update && apt-get install -y \
     ca-certificates \
     curl \
     && rm -rf /var/lib/apt/lists/*
-
-# Install Node.js and npm
-RUN curl -fsSL https://deb.nodesource.com/setup_18.x | bash - \
-    && apt-get install -y nodejs
 
 # Install Poetry
 RUN pip install --no-cache-dir poetry
@@ -45,9 +40,6 @@ RUN poetry config virtualenvs.create false \
 
 # Copy the rest of the project files
 COPY . /app/
-
-# Install npm dependencies and build React assets
-RUN cd /app && npm install && npx webpack --mode production
 
 # Create and switch to a non-root user
 RUN adduser --disabled-password --gecos '' myuser
