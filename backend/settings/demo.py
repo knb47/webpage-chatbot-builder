@@ -13,7 +13,8 @@ from .base import *
 
 DEBUG = True
 
-ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'web']
+# Extra hosts let the demo stack be reached through a tunnel or a hosted URL.
+ALLOWED_HOSTS = ['localhost', '127.0.0.1', 'web', '.trycloudflare.com', '.fly.dev']
 
 DATABASES = {
     'default': {
@@ -39,6 +40,8 @@ DEFAULT_FILE_STORAGE = 'storages.backends.s3boto3.S3Boto3Storage'
 CSRF_TRUSTED_ORIGINS = CSRF_TRUSTED_ORIGINS + [
     'http://localhost:8000',
     'http://127.0.0.1:8000',
+    'https://*.trycloudflare.com',
+    'https://*.fly.dev',
 ]
 
 EMAIL_BACKEND = 'django.core.mail.backends.console.EmailBackend'

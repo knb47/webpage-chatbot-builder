@@ -6,7 +6,7 @@ else changes.
 
 AWS_PUBLIC_ENDPOINT_URL is the same edge as reachable from the *user's
 browser* (e.g. http://localhost:4566 when Django runs in compose but the
-recruiter clicks from the host). Used only to build invoke URLs.
+user browses from the host). Used only to build invoke URLs.
 """
 
 import os
