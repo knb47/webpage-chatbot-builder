@@ -49,7 +49,7 @@
       </div>
       <div class="agent-actions">
         {% if row.deployment and row.deployment.status == 'active' %}
-          <button class="btn btn-outline-secondary btn-sm act-teardown">End</button>
+          <button class="btn btn-outline-secondary btn-sm act-teardown">Teardown</button>
         {% else %}
           <button class="btn btn-dark btn-sm act-deploy">Deploy</button>
         {% endif %}
@@ -80,7 +80,7 @@
       </div>
       <div class="agent-actions">
         {% if d.status == 'active' %}
-          <button class="btn btn-outline-secondary btn-sm act-teardown">End</button>
+          <button class="btn btn-outline-secondary btn-sm act-teardown">Teardown</button>
         {% else %}
           <button class="btn btn-outline-danger btn-sm act-del-deployment">Clear record</button>
         {% endif %}
@@ -177,13 +177,13 @@ document.addEventListener('DOMContentLoaded', function () {
         }
       });
     } else if (btn.classList.contains('act-teardown')) {
-      confirmThen('End this deployment? The chat URL will stop working.', name, async () => {
-        setBusy(card, 'Ending…');
+      confirmThen('Tear down this deployment? The chat URL will stop working.', name, async () => {
+        setBusy(card, 'Tearing down…');
         try {
           const data = await post(`/account/teardown/${deploymentId}/`);
           if (!data.task_id) throw new Error(data.message || data.error || 'teardown refused');
           poll(`/account/teardown_status/${data.task_id}/`,
-            () => { showNotification(`'${name}' ended.`, 'success'); location.reload(); },
+            () => { showNotification(`'${name}' torn down.`, 'success'); location.reload(); },
             (err) => { showNotification(`Teardown failed: ${err}`, 'error'); location.reload(); });
         } catch (err) {
           showNotification(`Teardown failed: ${err.message}`, 'error'); location.reload();

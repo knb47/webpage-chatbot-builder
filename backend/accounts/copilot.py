@@ -41,6 +41,15 @@ states:
     tools_available: []
     actions_available: []
     states_available: ["start"]
+
+# Optional: brand the chat page (hero text + chips).
+ui:
+  suggestions:
+    - label: "👋 Get started"
+      prompt: "Hi! Let's get started."
+  quick_actions:
+    - label: "↺ Restart"
+      prompt: "Let's start over from the beginning."
 """
 
 SYSTEM_PROMPT = """\
@@ -62,6 +71,15 @@ The config format:
     optional provide_user (list of {link, purpose}) for links to share.
 - The last state in a flow is typically a summary/wrap-up state whose
   states_available is just itself (terminal).
+- optional top-level `ui:` block for the chat page's branding:
+    title / subtitle (hero heading text),
+    suggestions (3-4 {label, prompt} chips shown before the first message —
+    label is short with a leading emoji, prompt is the message it sends),
+    quick_actions (2-3 {label, prompt} chips under the composer during the
+    conversation, e.g. restart / summarize / next step),
+    completion_label / completion_description (the finished-state text in the
+    progress rail). Always include a tailored `ui:` block — good chips make
+    the agent feel finished.
 
 Rules:
 1. Interview the user about what they want (purpose, audience, stages,
