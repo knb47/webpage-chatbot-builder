@@ -9,6 +9,7 @@ import time
 from botocore.exceptions import ClientError
 from tenacity import retry, stop_after_attempt, wait_exponential
 from backend.accounts.models import Deployment
+from .clients import aws_client, invoke_url
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -90,14 +91,18 @@ def deploy_user_app(self, user_id, temp_file_path, chat_configuration_name):
         # Step 5: Create or update Lambda function
         sanitize_name = lambda bot_name: ''.join(c for c in bot_name if c.isalnum() or c in '-_') # adhere to aws lambda naming restrictions
         bot_name_clean = sanitize_name(chat_configuration_name)
-        function_name = f"user_{user_id}_agent_v0_{chat_configuration_name}"
+        function_name = f"user_{user_id}_agent_v0_{bot_name_clean}"
+        tenant_base_path = f"user/{user_id}/agent/v0/{bot_name_clean}"
 
-        lambda_client = boto3.client('lambda', region_name=aws_region)
-        api_client = boto3.client('apigateway', region_name=aws_region)
+        lambda_client = aws_client('lambda', aws_region)
+        api_client = aws_client('apigateway', aws_region)
 
         environment_vars = {
-            'USER_CONFIG': os.path.join("app", "config", "config.yaml"),
-            'OPENAI_API_KEY': os.environ.get("OPENAI_API_KEY")
+            'USER_CONFIG': "app/config/config.yaml",
+            'ANTHROPIC_API_KEY': os.environ.get("ANTHROPIC_API_KEY"),
+            # Shared gateway routes /user/{id}/agent/v0/{bot}/* here; the
+            # engine's Mangum handler strips this prefix before routing.
+            'TENANT_BASE_PATH': tenant_base_path,
         }
 
         # Try to create or update Lambda function
@@ -175,7 +180,7 @@ def deploy_user_app(self, user_id, temp_file_path, chat_configuration_name):
         )
 
         # Set permissions for API Gateway to invoke Lambda
-        statement_id = f"apigateway-{user_id}-agent-{chat_configuration_name}"
+        statement_id = f"apigateway-{user_id}-agent-{bot_name_clean}"
         try:
             lambda_client.add_permission(
                 FunctionName=function_name,
@@ -187,7 +192,9 @@ def deploy_user_app(self, user_id, temp_file_path, chat_configuration_name):
         except lambda_client.exceptions.ResourceConflictException:
             logger.info(f"Permission statement {statement_id} already exists. Skipping permission creation.")
 
-        unique_endpoint = f"https://{api_id}.execute-api.{aws_region}.amazonaws.com/prod/user/{user_id}/agent/v0/{chat_configuration_name}/chat"
+        # Trailing slash: the page at the tenant root uses relative URLs for
+        # its assets and the chat/flow API.
+        unique_endpoint = invoke_url(api_id, aws_region, 'prod', f"{tenant_base_path}/")
         logger.info(f"Deployment completed. Endpoint: {unique_endpoint}")
 
         # Clean up

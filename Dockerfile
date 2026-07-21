@@ -8,6 +8,20 @@ ENV PYTHONUNBUFFERED 1
 # Set the working directory
 WORKDIR /app
 
+# Optional: corporate root CAs for machines behind a TLS-inspecting proxy.
+# The glob is paired with an always-present file so COPY stays valid when the
+# CA bundle is absent. All later downloads (apt, curl, pip/poetry, npm) then
+# trust the proxy.
+COPY pyproject.toml corp-ca-bundle.pem* /tmp/ca/
+RUN if [ -f /tmp/ca/corp-ca-bundle.pem ]; then \
+      cp /tmp/ca/corp-ca-bundle.pem /usr/local/share/ca-certificates/corp-ca.crt && \
+      update-ca-certificates; \
+    fi
+ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt \
+    REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt \
+    NODE_EXTRA_CA_CERTS=/etc/ssl/certs/ca-certificates.crt \
+    PIP_TRUSTED_HOST="pypi.org files.pythonhosted.org pypi.python.org"
+
 # Install system dependencies
 RUN apt-get update && apt-get install -y \
     netcat-openbsd \

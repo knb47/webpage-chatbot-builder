@@ -6,6 +6,7 @@ from botocore.exceptions import ClientError
 from django.db import transaction
 from tenacity import retry, stop_after_attempt, wait_exponential
 from backend.accounts.models import Deployment
+from .clients import aws_client
 
 # Configure logging
 logging.basicConfig(level=logging.INFO)
@@ -42,8 +43,8 @@ def teardown_user_app(user_id, deployment):
 
         function_name = deployment.resource_name
         logger.info(f"Attempting to tear down resource name: {function_name}")
-        lambda_client = boto3.client('lambda', region_name=aws_region)
-        api_client = boto3.client('apigateway', region_name=aws_region)
+        lambda_client = aws_client('lambda', aws_region)
+        api_client = aws_client('apigateway', aws_region)
 
         # Wait for any ongoing updates to complete
         wait_for_deletion_to_complete(lambda_client, function_name)

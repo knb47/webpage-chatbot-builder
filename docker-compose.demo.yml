@@ -1,0 +1,67 @@
+# Full-stack local demo: control plane (Django + Celery + RabbitMQ + Postgres)
+# deploying real tenant Lambdas into LocalStack.
+#
+#   1. docker compose -f infra/localstack/docker-compose.yml up -d
+#   2. terraform apply (see infra/terraform/) and put outputs in .env.demo
+#   3. bash backend/accounts/deployment/pull_package.sh   (build engine zip)
+#   4. docker compose -f docker-compose.demo.yml up --build
+#
+# Cloud mapping: web+celery containers ~ ECS services, postgres ~ RDS,
+# rabbitmq ~ Amazon MQ, LocalStack ~ Lambda/API Gateway/S3.
+
+services:
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    command: sh -c "python manage.py migrate && python manage.py runserver 0.0.0.0:8000"
+    ports:
+      - "8000:8000"
+    env_file:
+      - .env.demo
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+    networks: [default, localstack]
+
+  celery:
+    build:
+      context: .
+      dockerfile: Dockerfile.celery
+    env_file:
+      - .env.demo
+    depends_on:
+      postgres:
+        condition: service_healthy
+      rabbitmq:
+        condition: service_started
+    networks: [default, localstack]
+
+  postgres:
+    image: postgres:16
+    environment:
+      - POSTGRES_DB=chapp
+      - POSTGRES_USER=chapp
+      - POSTGRES_PASSWORD=chapp
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U chapp"]
+      interval: 3s
+      timeout: 3s
+      retries: 10
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+  rabbitmq:
+    image: rabbitmq:3-management
+    ports:
+      - "15672:15672"   # management UI (guest/guest)
+
+networks:
+  localstack:
+    external: true
+    name: localstack_default
+
+volumes:
+  pgdata:
