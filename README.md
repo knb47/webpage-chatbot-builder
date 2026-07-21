@@ -1,420 +1,100 @@
-# Chatbot Assistant Builder for Webpages
-## This application is currently under development.
+# Chapp — No-Code AI Agent Builder
 
-**Inspiration**:
-Many existing chat agents on websites are limited, preventing users from performing actions like purchasing products or canceling appointments.
+A no-code platform for creating custom AI chat agents. Users design an agent's
+conversation flow in a drag-and-drop builder, define business logic as a state
+machine, and deploy an isolated, working assistant — without writing backend
+code.
 
-**Solution**:
-Develop a no-code platform that allows businesses to seamlessly deploy functional chat agents capable of handling user interactions and actions on their websites.
+This repo is the **control plane** (Django). The agent runtime is the
+**[chat engine](https://github.com/knb47/chapp-skeleton)** (FastAPI +
+LangChain + Claude), packaged and provisioned per tenant by this app.
 
-**How**:
-Design a chat engine that standardizes conversational flow, while allowing businesses to define specific states and actions, which can be integrated into the chat engine to create tailored experiences for users.
+```
+        this repo (control plane)                     AWS (or LocalStack)
+┌──────────────────────────────────────┐      ┌────────────────────────────────┐
+│  Django + DRF        React builder   │      │  API Gateway (shared)          │
+│  auth · uploads · deployments UI     │      │    /user/{id}/agent/{v}/{bot}  │
+│           │                          │      │        │                       │
+│           ▼                          │      │        ▼                       │
+│  RabbitMQ ──► Celery worker ── boto3 ┼─────►│  Lambda (per tenant)           │
+│                   │                  │      │   └─ chat engine + config      │
+│  Postgres         └─ engine zip      │      │  S3 (tenant configs)           │
+│  (users, deployments)                │      └────────────────────────────────┘
+└──────────────────────────────────────┘
+```
 
-**Technologies:** Python, AWS, Django, Celery, PostgreSQL, S3, RabbitMQ, LangChain, FastAPI, OpenAI, jQuery, LangChain
+## What happens on "Deploy"
 
-# Application Setup and Deployment Guide
+1. The React builder (reactflow) turns the visual decision graph into the
+   engine's YAML state-machine format (`generateYaml.js`).
+2. The config uploads to S3; Django records it and queues a Celery task.
+3. The worker packages the [engine](https://github.com/knb47/chapp-skeleton)
+   with the tenant's config, then provisions an **isolated Lambda** and wires
+   it into a shared **API Gateway** under the tenant's route.
+4. The user gets back a working chat URL — a full ChatGPT-style page with a
+   live progress rail, served by their own Lambda, powered by Claude.
 
-This guide will help you set up and run the application in development and production environments using Docker and Docker Compose.
+Teardown and pause are first-class: deployments are tracked in Postgres and
+can be deleted per tenant (`teardown_lambda.py`).
 
-## Prerequisites
+## Run the full demo locally (no AWS account)
 
-- Docker
-- Docker Compose
-- Poetry
-- Python 3.x
+The entire pipeline runs against **LocalStack**, provisioned by **Terraform** —
+the same `.tf` files target real AWS by setting `-var aws_endpoint=""`.
 
-## Running the Application
-
-Add a .env.dev file to the root directory, using .env.dev.example as an example.
-
-Add a .env.prod file to the root directory, using .env.prod.example as an example.
-
-To run the UI locally in development mode:
-docker-compose-f docker-compose.dev.yml up --build
-
-To run the server in production mode:
-docker-compose -f docker-compose.prod.yml up --build
-
-# Application Overview
-
-![Image of application overview.](./application_overview.png)
-
-# Getting Started: Poetry
-# **Poetry Guide for This Project**
-
-This guide explains how to use **Poetry** to manage dependencies in this project.
-
----
-
-## **1. Installing Poetry**
-If Poetry is not installed, you can install it via:
 ```bash
-curl -sSL https://install.python-poetry.org | python3 -
-```
-Alternatively, follow the [Poetry installation guide](https://python-poetry.org/docs/#installation).
+# 0. prerequisites: Docker. Copy .env.demo.example -> .env.demo,
+#    add your ANTHROPIC_API_KEY.
 
-Verify installation:
+make demo-infra     # LocalStack up + terraform apply (IAM, API GW, S3)
+                    #   -> put `terraform output api_gateway_id` in .env.demo
+make demo-package   # build the engine Lambda zip from source (Dockerized)
+make demo-up        # Django + Celery + RabbitMQ + Postgres
+
+# then: http://localhost:8000 — register, build a flow, deploy, chat.
+```
+
+Cloud mapping for the local stack: web/celery containers ↔ ECS services,
+Postgres ↔ RDS, RabbitMQ ↔ Amazon MQ, LocalStack ↔ Lambda / API Gateway / S3.
+
+## Repository layout
+
+```
+backend/
+  accounts/            users, uploads, deployments (models, DRF views, tasks)
+    tasks.py           Celery: deploy_chat_app / teardown_chat_app
+    deployment/
+      pull_package.sh  builds the engine zip from the engine repo
+      aws_utils/       boto3 provisioning: deploy / teardown / pause,
+                       clients.py (LocalStack/AWS switch via AWS_ENDPOINT_URL)
+  settings/            base / development / demo / production
+  ui/react/            drag-and-drop flow builder (reactflow) + YAML codegen
+infra/
+  localstack/          pinned LocalStack compose (community image)
+  terraform/           base infra: IAM role, shared API GW, S3 bucket
+docker-compose.demo.yml  full local stack
+```
+
+## Development
+
+- **Backend:** `poetry install`, then `python manage.py runserver` (uses
+  `settings/development.py`: SQLite + mock deploy views, no AWS needed).
+- **Frontend:** `npm install && npm run start-dev` (webpack HMR on :3000).
+- **Real vs mock:** `DJANGO_ENV=production` selects the real views/tasks;
+  anything else uses `views/mock_views.py` for offline UI work.
+
+## Tests
+
 ```bash
-poetry --version
+poetry run python manage.py test backend.accounts
 ```
 
----
-
-## **2. Setting Up the Project**
-
-### **Step 1: Activate the Poetry Environment**
-To activate the Poetry environment:
-```bash
-poetry shell
-```
-
-To exit the Poetry environment:
-```bash
-exit
-```
-
-### **Step 2: Install Dependencies**
-Install all dependencies from `pyproject.toml`:
-```bash
-poetry install
-```
-This installs all required packages and sets up the virtual environment.
-
----
-
-## **3. Adding Dependencies**
-
-### **Add a New Dependency**
-To add a new package:
-```bash
-poetry add <package-name>
-```
-
-### **Example:**
-To add `python-dotenv`:
-```bash
-poetry add python-dotenv
-```
-
-### **Add Development Dependencies**
-For packages needed only for development (e.g., testing, linting):
-```bash
-poetry add --dev <package-name>
-```
-
-### **Example:**
-To add `pytest` for testing:
-```bash
-poetry add --dev pytest
-```
-
----
-
-## **4. Removing Dependencies**
-To remove a package:
-```bash
-poetry remove <package-name>
-```
-
-### **Example:**
-To remove `python-dotenv`:
-```bash
-poetry remove python-dotenv
-```
-
----
-
-## **5. Running Commands Inside the Poetry Environment**
-If you don’t want to activate the shell, you can run commands directly:
-```bash
-poetry run python manage.py runserver
-```
-
-This ensures the command uses the virtual environment set up by Poetry.
-
----
-
-## **6. Common Commands Summary**
-| **Command**                  | **Description**                          |
-|------------------------------|------------------------------------------|
-| `poetry shell`                | Activates the Poetry virtual environment.|
-| `poetry install`              | Installs dependencies from `pyproject.toml`.|
-| `poetry add <package>`        | Adds a new dependency.                   |
-| `poetry add --dev <package>`  | Adds a development-only dependency.      |
-| `poetry remove <package>`     | Removes a dependency.                    |
-| `poetry run <command>`        | Runs a command inside the Poetry environment.|
-
----
-
-## **7. Project Setup Commands**
-
-### **To Run the Django Server (Development Mode):**
-```bash
-poetry shell
-python manage.py runserver
-```
-
-### **To Run Without Activating the Shell:**
-```bash
-poetry run python manage.py runserver
-```
-
----
-
-This guide helps new users set up and use Poetry effectively for this project. Let me know if you encounter any issues!
-
-
-
-# FRONTEND DEVELOPMENT
-
-# **Django + Webpack + React Frontend Development Guide**
-
-## **Overview**
-This guide walks you through:
-1. Setting up your environment.
-2. Running the development servers with Hot Module Reloading (HMR).
-3. Building the production bundle for deployment.
-4. Understanding the key files and their purposes.
-
----
-
-## **1. Project Setup Recap**
-
-### **Files Updated:**
-
-- **`webpack.config.js`**: Configures Webpack to bundle your TypeScript/React app and enable hot reloading or cache-busting based on the environment.
-- **`settings.py`**: Configured `django-webpack-loader` to dynamically load the correct frontend bundle.
-- **`templates/index.html`**: Updated to dynamically include the bundle using `{% render_bundle 'bundle' %}`.
-
----
-
-## **2. Requirements**
-
-Make sure you have the following installed:
-- **Python (Django)**: Version 3.8+ recommended.
-- **Node.js**: Version 14+ recommended.
-- **npm**: Comes with Node.js.
-
-### **Install dependencies:**
-```bash
-pip install django-webpack-loader
-npm install
-```
-
----
-
-## **3. Running the Application (Development Mode)**
-
-### **Step 1: Start the Django Server**
-In one terminal, run:
-```bash
-python manage.py runserver
-```
-- This starts Django’s server on `http://localhost:8000/`.
-
-### **Step 2: Start Webpack Dev Server (with Hot Module Reloading)**
-In another terminal, run:
-```bash
-npm run start-dev
-```
-- This starts the Webpack Dev Server on `http://localhost:3000/` to serve your frontend assets (like `bundle.js`).
-- **HMR (Hot Module Reloading)** will update your frontend automatically without refreshing the page.
-
-### **Testing Changes:**
-1. Open `http://localhost:8000/` in your browser.
-2. Make changes to your **TypeScript/React** components or **CSS**.
-3. Your browser should update automatically.
-
----
-
-## **4. Building for Production (Deployment)**
-
-### **Step 1: Build the Production Bundle**
-Run:
-```bash
-npm run build
-```
-- This creates an optimized, minified bundle with a cache-busting filename (`bundle.[contenthash].js`).
-- The output is placed in `static/js/`.
-
-### **Step 2: Collect Static Files**
-Django needs to collect all static files:
-```bash
-python manage.py collectstatic
-```
-- This copies the bundled files to `staticdist/` (or wherever `STATIC_ROOT` is set).
-
-### **Step 3: Run Django Server**
-Run Django’s server:
-```bash
-python manage.py runserver
-```
-
----
-
-## **5. Development vs Production Summary**
-
-| **Environment** | **Command**         | **Description**                              |
-|-----------------|---------------------|----------------------------------------------|
-| Development     | `npm run start-dev`  | Runs Webpack Dev Server with HMR.             |
-| Development     | `python manage.py runserver` | Starts Django backend server.        |
-| Production      | `npm run build`      | Builds the production bundle.                 |
-| Production      | `python manage.py collectstatic` | Collects all static files.         |
-
----
-
-## **6. Example Commands**
-
-### **Run Development Mode:**
-```bash
-python manage.py runserver
-npm run start-dev
-```
-
-### **Build for Production:**
-```bash
-npm run build
-python manage.py collectstatic
-python manage.py runserver
-```
-
----
-
-## **7. Key Files and Their Purpose**
-
-### **`webpack.config.js`** (Frontend Build Configuration)
-Configures Webpack for development and production:
-```javascript
-const path = require('path');
-const BundleTracker = require('webpack-bundle-tracker');
-
-module.exports = (env, argv) => {
-  const isProduction = argv.mode === 'production';
-  return {
-    entry: './backend/src/index.tsx',
-    output: {
-      path: path.resolve(__dirname, 'static/js'),
-      filename: isProduction ? 'bundle.[contenthash].js' : 'bundle.js',
-      publicPath: isProduction ? '/static/js/' : 'http://localhost:3000/static/js/',
-    },
-    module: {
-      rules: [
-        {
-          test: /\.(js|jsx|ts|tsx)$/,
-          exclude: /node_modules/,
-          use: 'babel-loader',
-        },
-        {
-          test: /\.css$/,
-          use: ['style-loader', 'css-loader'],
-        },
-      ],
-    },
-    resolve: {
-      extensions: ['.js', '.jsx', '.ts', '.tsx'],
-    },
-    plugins: [
-      new BundleTracker({ filename: './webpack-stats.json' }),
-    ],
-    mode: argv.mode || 'development',
-    devtool: isProduction ? false : 'eval-source-map',
-    devServer: {
-      port: 3000,
-      hot: true,
-      headers: { 'Access-Control-Allow-Origin': '*' },
-      proxy: {
-        '/': 'http://localhost:8000',
-      },
-    },
-  };
-};
-```
-
-### **`settings.py`** (Django Configuration)
-```python
-INSTALLED_APPS = [
-    # Other apps...
-    'webpack_loader',
-]
-
-WEBPACK_LOADER = {
-    'DEFAULT': {
-        'BUNDLE_DIR_NAME': 'js/',  # Subdirectory inside 'static/'
-        'STATS_FILE': os.path.join(BASE_DIR, 'webpack-stats.json'),  # Path to the manifest
-    }
-}
-```
-
-### **`package.json`** (NPM Scripts and Dependencies)
-```json
-{
-  "scripts": {
-    "build": "webpack --mode production",
-    "start-dev": "webpack serve --mode development --open"
-  },
-  "dependencies": {
-    "react": "^18.3.1",
-    "react-dom": "^18.3.1",
-    "js-yaml": "^4.1.0",
-    "lucide-react": "^0.456.0",
-    "reactflow": "^11.11.4"
-  },
-  "devDependencies": {
-    "@babel/core": "^7.25.2",
-    "@babel/preset-env": "^7.25.4",
-    "@babel/preset-react": "^7.24.7",
-    "@babel/preset-typescript": "^7.20.0",
-    "babel-loader": "^9.2.1",
-    "css-loader": "^6.8.1",
-    "style-loader": "^3.3.3",
-    "webpack": "^5.95.0",
-    "webpack-cli": "^5.1.4",
-    "webpack-bundle-tracker": "^1.0.0-beta.1"
-  }
-}
-```
-
-### **`index.html`** (Django Template)
-```html
-{% extends 'base.html' %}
-
-{% load render_bundle from webpack_loader %}
-
-{% block title %}Chatbot Builder{% endblock %}
-
-{% block content %}
-<div id="react-root" style="height: 80vh;"></div>
-{% endblock %}
-
-{% block extra_scripts %}
-<!-- Automatically load the correct hashed bundle -->
-{% render_bundle 'bundle' %}
-{% endblock %}
-```
-
----
-
-## **8. Folder Structure Recap**
-
-```plaintext
-├── backend/
-│   ├── src/                  # Frontend source files (TypeScript/React)
-│   │   └── index.tsx         # Main React/TypeScript entry point
-│   └── templates/
-│       └── index.html        # Django template that includes the React app
-├── static/
-│   └── js/                   # Location for Webpack bundles (development mode)
-├── staticdist/               # Where Django collects static files (for production)
-├── webpack.config.js         # Webpack configuration
-├── webpack-stats.json        # Generated manifest file for django-webpack-loader
-├── manage.py                 # Django management script
-└── package.json              # npm scripts and dependencies
-```
-
----
-
-## **9. Additional Notes**
-
-- **Auto-reloading in Django:** Django will automatically reload the server when Python files change.
-- **Live updates with Webpack:** HMR (Hot Module Reloading) updates your frontend files without a page refresh.
-- **Production Tip:** Use `collectstatic` to gather all assets for deployment.
+Covers the deployment models, the Celery deploy task against mocked AWS
+clients, and the LocalStack/AWS endpoint formatting.
+
+## Tech stack
+
+Python · Django + DRF · Celery + RabbitMQ · PostgreSQL · boto3 ·
+Terraform + LocalStack · AWS Lambda / API Gateway / S3 · React (reactflow) ·
+webpack · Docker — LLM runtime: LangChain + Claude (in the
+[engine repo](https://github.com/knb47/chapp-skeleton))

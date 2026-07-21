@@ -25,3 +25,7 @@ infra/terraform/.terraform.lock.hcl
 *.tfstate.*
 corp-ca-bundle.pem
 .env.demo
+
+# Generated frontend build output
+webpack-stats.json
+backend/ui/vanilla/js/bundled_imports/
