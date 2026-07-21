@@ -21,8 +21,14 @@
     </header>
     <div id="chat-log" class="chat-log"></div>
     <form id="chat-form" class="chat-input">
-      <textarea id="chat-text" rows="2" placeholder="e.g. A screening bot that vets sales candidates in 4 stages…" required></textarea>
-      <button type="submit" class="btn btn-dark" id="chat-send">Send</button>
+      <div class="input-shell">
+        <textarea id="chat-text" rows="1" placeholder="Describe the agent you want to build…" required></textarea>
+        <button type="submit" id="chat-send" aria-label="Send" title="Send">
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg">
+            <path d="M8 13V3M8 3L3.5 7.5M8 3l4.5 4.5" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/>
+          </svg>
+        </button>
+      </div>
     </form>
   </section>
 
@@ -43,30 +49,59 @@
 </div>
 
 <style>
-  .builder-wrap { display: grid; grid-template-columns: 200px minmax(300px, 5fr) minmax(340px, 6fr); gap: 14px; height: calc(100vh - 140px); }
-  .pane { display: flex; flex-direction: column; border: 1px solid #d9d9d9; border-radius: 10px; background: #fff; overflow: hidden; }
-  .pane-head { padding: 10px 14px; border-bottom: 1px solid #eee; display: flex; gap: 10px; align-items: center; justify-content: space-between; }
-  .muted { color: #888; font-size: 0.85em; }
-  .session-list { list-style: none; margin: 0; padding: 6px; overflow-y: auto; flex: 1; }
-  .session-list li { padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 0.87em; display: flex; justify-content: space-between; gap: 6px; align-items: baseline; }
-  .session-list li:hover { background: #f4f4f4; }
-  .session-list li.active { background: #eaeaea; font-weight: 600; }
-  .session-list .del { color: #bbb; cursor: pointer; }
-  .session-list .del:hover { color: #c00; }
-  .chat-log { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
-  .msg { padding: 9px 12px; border-radius: 10px; max-width: 92%; line-height: 1.45; overflow-wrap: anywhere; }
-  .msg.user { background: #1a1a1a; color: #fff; align-self: flex-end; white-space: pre-wrap; }
-  .msg.assistant { background: #f2f2f2; align-self: flex-start; }
-  .msg.assistant p:last-child { margin-bottom: 0; }
-  .msg.assistant pre { background: #e8e8e8; padding: 8px; border-radius: 6px; overflow-x: auto; }
-  .msg.assistant code { background: #e8e8e8; border-radius: 4px; padding: 1px 4px; }
-  .msg.thinking { color: #888; font-style: italic; background: transparent; }
-  .chat-input { display: flex; gap: 8px; padding: 10px; border-top: 1px solid #eee; }
-  .chat-input textarea { flex: 1; resize: none; border: 1px solid #ccc; border-radius: 8px; padding: 8px 10px; }
-  #yaml-editor { flex: 1; border: 0; padding: 14px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 13px; line-height: 1.45; resize: none; outline: none; background: #fafafa; }
-  .save-bar { display: flex; gap: 8px; padding: 10px; border-top: 1px solid #eee; }
-  .save-bar input { max-width: 320px; }
-  @media (max-width: 1000px) { .builder-wrap { grid-template-columns: 1fr; height: auto; } #yaml-editor { min-height: 320px; } .sessions-pane { max-height: 200px; } }
+  .builder-wrap { display: grid; grid-template-columns: 210px minmax(300px, 5fr) minmax(340px, 6fr); gap: 16px; height: calc(100vh - 140px);
+    -webkit-font-smoothing: antialiased; }
+  .pane { display: flex; flex-direction: column; border: 1px solid #e5e5e5; border-radius: 14px; background: #fff; overflow: hidden;
+    box-shadow: 0 1px 3px rgba(0,0,0,.04); }
+  .pane-head { padding: 12px 16px; border-bottom: 1px solid #f0f0f0; display: flex; gap: 10px; align-items: center; justify-content: space-between;
+    background: #fcfcfc; }
+  .pane-head strong { font-size: .95em; letter-spacing: .01em; }
+  .muted { color: #999; font-size: 0.8em; }
+
+  /* Sessions */
+  .session-list { list-style: none; margin: 0; padding: 8px; overflow-y: auto; flex: 1; }
+  .session-list li { padding: 8px 10px; border-radius: 9px; cursor: pointer; font-size: 0.85em; display: flex; justify-content: space-between;
+    gap: 6px; align-items: center; color: #444; border-left: 3px solid transparent; transition: background .12s; }
+  .session-list li:hover { background: #f6f6f6; }
+  .session-list li.active { background: #f0f0f0; border-left-color: #1a1a1a; font-weight: 600; color: #111; }
+  .session-list .del { color: #ccc; cursor: pointer; font-size: .9em; padding: 2px 4px; border-radius: 5px; }
+  .session-list .del:hover { color: #c0392b; background: #fbeaea; }
+  #new-session { border-radius: 8px; font-size: .8em; }
+
+  /* Chat */
+  .chat-log { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; background: #fff; }
+  .msg { padding: 10px 14px; border-radius: 14px; max-width: 90%; line-height: 1.5; overflow-wrap: anywhere; font-size: .93em; }
+  .msg.user { background: #1a1a1a; color: #fff; align-self: flex-end; white-space: pre-wrap; border-bottom-right-radius: 4px; }
+  .msg.assistant { background: #f4f4f5; align-self: flex-start; border-bottom-left-radius: 4px; }
+  .msg.assistant p:last-child, .msg.assistant ul:last-child, .msg.assistant ol:last-child { margin-bottom: 0; }
+  .msg.assistant pre { background: #e9e9eb; padding: 10px; border-radius: 8px; overflow-x: auto; font-size: .9em; }
+  .msg.assistant code { background: #e9e9eb; border-radius: 4px; padding: 1px 5px; font-size: .9em; }
+  .msg.thinking { color: #999; font-style: italic; background: transparent; padding-left: 2px; }
+
+  /* Composer: pill input with an embedded round send button */
+  .chat-input { padding: 12px 14px 14px; border-top: 1px solid #f0f0f0; background: #fff; }
+  .input-shell { display: flex; align-items: flex-end; gap: 8px; border: 1px solid #ddd; border-radius: 16px; padding: 8px 8px 8px 14px;
+    background: #fafafa; transition: border-color .15s, box-shadow .15s; }
+  .input-shell:focus-within { border-color: #aaa; box-shadow: 0 0 0 3px rgba(0,0,0,.05); background: #fff; }
+  .input-shell textarea { flex: 1; resize: none; border: 0; outline: none; background: transparent; padding: 4px 0; max-height: 140px;
+    font-size: .93em; line-height: 1.45; }
+  #chat-send { flex: 0 0 auto; width: 34px; height: 34px; border-radius: 50%; border: 0; background: #1a1a1a; color: #fff;
+    display: flex; align-items: center; justify-content: center; cursor: pointer; transition: background .15s, transform .1s; }
+  #chat-send:hover { background: #333; }
+  #chat-send:active { transform: scale(.94); }
+  #chat-send:disabled { background: #d4d4d4; cursor: default; }
+
+  /* YAML pane */
+  #yaml-editor { flex: 1; border: 0; padding: 16px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 12.5px;
+    line-height: 1.5; resize: none; outline: none; background: #fbfbfb; color: #333; }
+  .save-bar { display: flex; gap: 8px; padding: 12px 14px; border-top: 1px solid #f0f0f0; background: #fff; }
+  .save-bar input { max-width: 300px; border-radius: 10px; font-size: .9em; }
+  .save-bar .btn { border-radius: 10px; font-size: .9em; }
+  .save-bar .btn-success { background: #1f883d; border-color: #1f883d; }
+  .save-bar .btn-success:hover { background: #1a7f37; }
+
+  @media (max-width: 1000px) { .builder-wrap { grid-template-columns: 1fr; height: auto; } #yaml-editor { min-height: 320px; }
+    .sessions-pane { max-height: 200px; } }
 </style>
 {% endblock %}
 
@@ -206,6 +241,14 @@
   text.addEventListener('keydown', function (e) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
   });
+
+  // Auto-grow the composer up to its max-height, shrink back after send.
+  function autosize() {
+    text.style.height = 'auto';
+    text.style.height = Math.min(text.scrollHeight, 140) + 'px';
+  }
+  text.addEventListener('input', autosize);
+  form.addEventListener('submit', () => setTimeout(autosize));
 
   saveBtn.addEventListener('click', async function () {
     saveResult.textContent = '';
