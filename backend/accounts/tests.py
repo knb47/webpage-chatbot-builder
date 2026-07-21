@@ -25,6 +25,21 @@ def make_uploaded_file(user, name="bot.yaml", config_name="bot_1"):
     return f
 
 
+# Minimal config that passes copilot.validate_config.
+VALID_YAML = """\
+bot_name: "Test"
+initialization:
+  - role: "assistant"
+  - context: "x"
+  - start_state: "start"
+states:
+  - state: "start"
+    trigger: "t"
+    goal: "g"
+    states_available: ["start"]
+"""
+
+
 class ModelTests(TestCase):
     def test_config_name_unique_per_user(self):
         user = make_user()
@@ -120,7 +135,7 @@ class CopilotTests(TestCase):
         return resp
 
     def test_chat_extracts_fenced_yaml(self):
-        text = "Here you go!\n```yaml\nbot_name: \"Test\"\nstates: []\n```\nAnything else?"
+        text = "Here you go!\n```yaml\n" + VALID_YAML + "```\nAnything else?"
         with mock.patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test"}), \
              mock.patch.object(copilot.requests, "post", return_value=self._mock_claude(text)):
             reply, yaml_text = copilot.chat([{"role": "user", "content": "make a bot"}], "")
@@ -141,7 +156,7 @@ class CopilotTests(TestCase):
         self.client.force_login(user)
         res = self.client.post(
             "/api/accounts/copilot/save/",
-            data=json.dumps({"chatbot_name": "My Bot!", "yaml": 'bot_name: "My Bot"\n'}),
+            data=json.dumps({"chatbot_name": "My Bot!", "yaml": VALID_YAML}),
             content_type="application/json",
         )
         self.assertEqual(res.status_code, 200)
@@ -156,7 +171,111 @@ class CopilotTests(TestCase):
         for expected in (200, 409):
             res = self.client.post(
                 "/api/accounts/copilot/save/",
-                data=json.dumps({"chatbot_name": "dup", "yaml": "x: 1\n"}),
+                data=json.dumps({"chatbot_name": "dup", "yaml": VALID_YAML}),
                 content_type="application/json",
             )
             self.assertEqual(res.status_code, expected)
+
+
+class ValidatorTests(TestCase):
+    """copilot.validate_config catches broken configs before users see them."""
+
+    GOOD = """
+bot_name: "T"
+initialization:
+  - role: "assistant"
+  - context: "x"
+  - start_state: "start"
+states:
+  - state: "start"
+    trigger: "t"
+    goal: "g"
+    states_available: ["start", "done"]
+  - state: "done"
+    trigger: "t"
+    goal: "g"
+    states_available: ["done"]
+"""
+
+    def test_valid_config_passes(self):
+        self.assertEqual(copilot.validate_config(self.GOOD), [])
+
+    def test_unparseable_yaml_reports(self):
+        errs = copilot.validate_config("states: [unclosed")
+        self.assertTrue(errs and "parseable" in errs[0])
+
+    def test_undefined_state_reference(self):
+        errs = copilot.validate_config(self.GOOD.replace('"done"]', '"missing"]', 1))
+        self.assertTrue(any("undefined state" in e for e in errs))
+
+    def test_missing_start_state(self):
+        errs = copilot.validate_config(self.GOOD.replace('start_state: "start"', 'start_state: "nope"'))
+        self.assertTrue(any("not a defined state" in e for e in errs))
+
+    def test_chat_retries_until_valid(self):
+        bad = "Here!\n```yaml\nstates: [unclosed\n```"
+        good = "Fixed!\n```yaml" + self.GOOD + "```"
+        responses = [self._resp(bad), self._resp(good)]
+        with mock.patch.dict("os.environ", {"ANTHROPIC_API_KEY": "test"}), \
+             mock.patch.object(copilot.requests, "post", side_effect=responses) as post:
+            reply, yaml_text = copilot.chat([{"role": "user", "content": "go"}], "")
+        self.assertEqual(post.call_count, 2)            # one automatic fix round
+        self.assertEqual(copilot.validate_config(yaml_text), [])
+
+    def _resp(self, text):
+        r = mock.Mock()
+        r.json.return_value = {"content": [{"type": "text", "text": text}]}
+        r.raise_for_status = mock.Mock()
+        return r
+
+
+class SessionTests(TestCase):
+    """Builder sessions: autosave on chat, list, restore, delete."""
+
+    def setUp(self):
+        self.user = make_user("sess")
+        self.client.force_login(self.user)
+
+    def _chat(self, body):
+        import json as _json
+        return self.client.post("/api/accounts/copilot/chat/",
+                                data=_json.dumps(body), content_type="application/json")
+
+    def test_chat_creates_session_and_persists_history(self):
+        from .models import BuilderSession
+        with mock.patch.object(copilot, "chat", return_value=("Hello!", "bot_name: x\n")):
+            res = self._chat({"messages": [{"role": "user", "content": "Build me a tutor bot"}],
+                              "current_yaml": ""})
+        self.assertEqual(res.status_code, 200)
+        sid = res.json()["session_id"]
+        s = BuilderSession.objects.get(id=sid, user=self.user)
+        self.assertEqual(s.title, "Build me a tutor bot")
+        self.assertEqual(s.messages[-1], {"role": "assistant", "content": "Hello!"})
+        self.assertEqual(s.yaml_text, "bot_name: x\n")
+
+        # continues in the same session
+        with mock.patch.object(copilot, "chat", return_value=("More.", None)):
+            res2 = self._chat({"messages": s.messages + [{"role": "user", "content": "add a state"}],
+                               "current_yaml": s.yaml_text, "session_id": sid})
+        self.assertEqual(res2.json()["session_id"], sid)
+        s.refresh_from_db()
+        self.assertEqual(len(s.messages), 4)
+        self.assertEqual(s.yaml_text, "bot_name: x\n")  # unchanged when no new yaml
+
+    def test_list_restore_delete(self):
+        from .models import BuilderSession
+        s = BuilderSession.objects.create(user=self.user, title="My agent",
+                                          messages=[{"role": "user", "content": "hi"}],
+                                          yaml_text="a: 1\n")
+        lst = self.client.get("/api/accounts/copilot/sessions/").json()["sessions"]
+        self.assertEqual(lst[0]["title"], "My agent")
+        detail = self.client.get(f"/api/accounts/copilot/sessions/{s.id}/").json()
+        self.assertEqual(detail["yaml"], "a: 1\n")
+        self.client.delete(f"/api/accounts/copilot/sessions/{s.id}/")
+        self.assertFalse(BuilderSession.objects.filter(id=s.id).exists())
+
+    def test_sessions_are_private(self):
+        from .models import BuilderSession
+        other = make_user("other")
+        s = BuilderSession.objects.create(user=other, title="theirs")
+        self.assertEqual(self.client.get(f"/api/accounts/copilot/sessions/{s.id}/").status_code, 404)

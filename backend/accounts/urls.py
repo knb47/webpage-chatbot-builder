@@ -30,4 +30,6 @@ urlpatterns = [
   # Config copilot (builder page backend)
   path('copilot/chat/', views.copilot_chat_view, name='copilot_chat'),
   path('copilot/save/', views.copilot_save_view, name='copilot_save'),
+  path('copilot/sessions/', views.copilot_sessions_view, name='copilot_sessions'),
+  path('copilot/sessions/<int:session_id>/', views.copilot_session_detail_view, name='copilot_session_detail'),
 ]

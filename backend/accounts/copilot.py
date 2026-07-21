@@ -14,6 +14,7 @@ import os
 import re
 
 import requests
+import yaml as pyyaml
 
 ANTHROPIC_API_URL = "https://api.anthropic.com/v1/messages"
 MODEL = os.environ.get("CLAUDE_MODEL", "claude-haiku-4-5")
@@ -75,20 +76,58 @@ Rules:
 """
 
 
-def chat(messages, current_yaml):
-    """messages: [{role: user|assistant, content: str}]. Returns (reply, yaml|None)."""
+def validate_config(yaml_text):
+    """Structural validation of an engine config. Returns a list of problems
+    (empty == valid)."""
+    errors = []
+    try:
+        doc = pyyaml.safe_load(yaml_text)
+    except pyyaml.YAMLError as e:
+        return [f"Not parseable YAML: {e}"]
+    if not isinstance(doc, dict):
+        return ["Config must be a YAML mapping."]
+
+    init = doc.get("initialization")
+    start_state = None
+    if not isinstance(init, list):
+        errors.append("Missing 'initialization' list.")
+    else:
+        for item in init:
+            if isinstance(item, dict) and "start_state" in item:
+                start_state = item["start_state"]
+        if not start_state:
+            errors.append("initialization must define start_state.")
+
+    states = doc.get("states")
+    if not isinstance(states, list) or not states:
+        errors.append("Missing non-empty 'states' list.")
+        return errors
+
+    ids = set()
+    for s in states:
+        if not isinstance(s, dict) or "state" not in s:
+            errors.append("Every state needs a 'state' id.")
+            continue
+        ids.add(s["state"])
+    if start_state and start_state not in ids:
+        errors.append(f"start_state '{start_state}' is not a defined state.")
+    for s in states:
+        if not isinstance(s, dict):
+            continue
+        for field in ("trigger", "goal", "states_available"):
+            if field not in s:
+                errors.append(f"State '{s.get('state')}' is missing '{field}'.")
+        for ref in s.get("states_available") or []:
+            if ref not in ids:
+                errors.append(
+                    f"State '{s.get('state')}' references undefined state '{ref}'.")
+    return errors
+
+
+def _call_claude(payload_messages):
     api_key = os.environ.get("ANTHROPIC_API_KEY")
     if not api_key:
         raise RuntimeError("ANTHROPIC_API_KEY is not set")
-
-    # Latest user turn gets the current YAML appended as working context.
-    payload_messages = [dict(m) for m in messages]
-    if payload_messages and payload_messages[-1]["role"] == "user":
-        payload_messages[-1]["content"] += (
-            "\n\n[Current config the user sees in the editor:]\n```yaml\n"
-            + (current_yaml or STARTER_YAML) + "\n```"
-        )
-
     resp = requests.post(
         ANTHROPIC_API_URL,
         headers={
@@ -105,15 +144,52 @@ def chat(messages, current_yaml):
         timeout=120,
     )
     resp.raise_for_status()
-    text = "".join(b.get("text", "") for b in resp.json().get("content", []))
+    return "".join(b.get("text", "") for b in resp.json().get("content", []))
 
-    yaml_block = None
+
+def _extract_fence(text):
     fence = re.search(r"```(?:yaml|yml)\s*\n(.*?)```", text, re.DOTALL)
-    if fence:
-        yaml_block = fence.group(1).strip() + "\n"
-        # The fence lives in the editor pane; keep chat text conversational.
-        text = (text[: fence.start()] + text[fence.end():]).strip()
-        if not text:
-            text = "I've updated the config on the right — take a look."
+    if not fence:
+        return text, None
+    yaml_block = fence.group(1).strip() + "\n"
+    # The fence lives in the editor pane; keep chat text conversational.
+    text = (text[: fence.start()] + text[fence.end():]).strip()
+    return text or "I've updated the config on the right — take a look.", yaml_block
 
-    return text, yaml_block
+
+def chat(messages, current_yaml, max_fix_rounds=2):
+    """messages: [{role: user|assistant, content: str}]. Returns (reply, yaml|None).
+
+    If the model returns a config that fails validation, the errors are sent
+    back to it (up to max_fix_rounds) before anything reaches the user; an
+    invalid config never replaces the editor contents.
+    """
+    payload_messages = [dict(m) for m in messages]
+    if payload_messages and payload_messages[-1]["role"] == "user":
+        payload_messages[-1]["content"] += (
+            "\n\n[Current config the user sees in the editor:]\n```yaml\n"
+            + (current_yaml or STARTER_YAML) + "\n```"
+        )
+
+    text = _call_claude(payload_messages)
+    reply, yaml_block = _extract_fence(text)
+
+    rounds = 0
+    while yaml_block and validate_config(yaml_block) and rounds < max_fix_rounds:
+        problems = validate_config(yaml_block)
+        payload_messages.append({"role": "assistant", "content": text})
+        payload_messages.append({"role": "user", "content": (
+            "[Automated validator] The config you produced has problems:\n- "
+            + "\n- ".join(problems)
+            + "\nReturn the corrected COMPLETE config in a ```yaml fence."
+        )})
+        text = _call_claude(payload_messages)
+        reply, yaml_block = _extract_fence(text)
+        rounds += 1
+
+    if yaml_block and validate_config(yaml_block):
+        # Still broken after retries: keep the conversation, drop the config.
+        reply += "\n\n(I drafted a config but it didn't pass validation, so I left your current one untouched — tell me to try again.)"
+        yaml_block = None
+
+    return reply, yaml_block

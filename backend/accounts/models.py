@@ -52,6 +52,23 @@ class Deployment(models.Model):
     def __str__(self):
         return self.chatbot_name
 
+# A config-building session: the copilot conversation plus the working YAML.
+# Users can revisit and continue any session from the builder page.
+class BuilderSession(models.Model):
+    user = models.ForeignKey(get_user_model(), on_delete=models.CASCADE, related_name='builder_sessions')
+    title = models.CharField(max_length=120, default='Untitled agent')
+    messages = models.JSONField(default=list)   # [{role, content}]
+    yaml_text = models.TextField(blank=True)
+    created_at = models.DateTimeField(auto_now_add=True)
+    updated_at = models.DateTimeField(auto_now=True)
+
+    class Meta:
+        ordering = ['-updated_at']
+
+    def __str__(self):
+        return f"{self.title} ({self.user_id})"
+
+
 class EmailLog(models.Model):
     recipient = models.EmailField()
     subject = models.CharField(max_length=255)

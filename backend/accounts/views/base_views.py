@@ -209,6 +209,7 @@ def password_reset_request(request):
 from django.core.files.base import ContentFile
 from django.views.decorators.http import require_POST
 from .. import copilot
+from ..models import BuilderSession
 
 
 @login_required
@@ -216,14 +217,48 @@ from .. import copilot
 def copilot_chat_view(request):
     try:
         data = json.loads(request.body)
-        reply, yaml_text = copilot.chat(
-            data.get('messages', []),
-            data.get('current_yaml', ''),
-        )
-        return JsonResponse({'reply': reply, 'yaml': yaml_text})
+        messages = data.get('messages', [])
+        current_yaml = data.get('current_yaml', '')
+
+        # Every conversation lives in a session so the user can come back to it.
+        session_id = data.get('session_id')
+        if session_id:
+            session = get_object_or_404(BuilderSession, id=session_id, user=request.user)
+        else:
+            first = next((m['content'] for m in messages if m.get('role') == 'user'), 'Untitled agent')
+            session = BuilderSession.objects.create(user=request.user, title=first[:120])
+
+        reply, yaml_text = copilot.chat(messages, current_yaml)
+
+        session.messages = messages + [{'role': 'assistant', 'content': reply}]
+        session.yaml_text = yaml_text or current_yaml
+        session.save()
+
+        return JsonResponse({'reply': reply, 'yaml': yaml_text, 'session_id': session.id})
     except Exception as e:
         logger.error(f"Copilot chat failed: {e}")
         return JsonResponse({'error': str(e)}, status=502)
+
+
+@login_required
+def copilot_sessions_view(request):
+    sessions = BuilderSession.objects.filter(user=request.user).values(
+        'id', 'title', 'updated_at')[:50]
+    return JsonResponse({'sessions': [
+        {'id': s['id'], 'title': s['title'], 'updated_at': s['updated_at'].isoformat()}
+        for s in sessions]})
+
+
+@login_required
+def copilot_session_detail_view(request, session_id):
+    session = get_object_or_404(BuilderSession, id=session_id, user=request.user)
+    if request.method == 'DELETE':
+        session.delete()
+        return JsonResponse({'deleted': True})
+    return JsonResponse({
+        'id': session.id, 'title': session.title,
+        'messages': session.messages, 'yaml': session.yaml_text,
+    })
 
 
 @login_required
@@ -235,6 +270,10 @@ def copilot_save_view(request):
         yaml_text = data.get('yaml') or ''
         if not name or not yaml_text:
             return JsonResponse({'error': 'chatbot_name and yaml are required'}, status=400)
+
+        problems = copilot.validate_config(yaml_text)
+        if problems:
+            return JsonResponse({'error': 'Config is not valid:\n- ' + '\n- '.join(problems)}, status=400)
 
         file_name = re.sub(r'[^A-Za-z0-9_-]+', '_', name).strip('_').lower() + '.yaml'
         if UploadedFile.objects.filter(user=request.user, chat_configuration_name=name).exists():

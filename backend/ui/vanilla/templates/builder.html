@@ -4,23 +4,29 @@
 
 {% block content %}
 <div class="builder-wrap">
-  <!-- Left: config copilot chat -->
+  <!-- Sessions: every build lives in a session you can come back to -->
+  <aside class="pane sessions-pane">
+    <header class="pane-head">
+      <strong>Sessions</strong>
+      <button id="new-session" class="btn btn-sm btn-outline-dark" title="Start a new agent">+ New</button>
+    </header>
+    <ul id="session-list" class="session-list"></ul>
+  </aside>
+
+  <!-- Config copilot chat -->
   <section class="pane chat-pane">
     <header class="pane-head">
       <strong>Config Copilot</strong>
       <span class="muted">describe your agent — I'll write the config</span>
     </header>
-    <div id="chat-log" class="chat-log">
-      <div class="msg assistant">Hi! Tell me about the chat agent you want to build —
-        who is it for and what should it do? I'll draft the config on the right as we talk.</div>
-    </div>
+    <div id="chat-log" class="chat-log"></div>
     <form id="chat-form" class="chat-input">
       <textarea id="chat-text" rows="2" placeholder="e.g. A screening bot that vets sales candidates in 4 stages…" required></textarea>
       <button type="submit" class="btn btn-dark" id="chat-send">Send</button>
     </form>
   </section>
 
-  <!-- Right: the working YAML -->
+  <!-- The working YAML -->
   <section class="pane yaml-pane">
     <header class="pane-head">
       <strong>config.yaml</strong>
@@ -32,30 +38,41 @@
       <button id="save-btn" class="btn btn-success">Save to library</button>
       <a href="{% url 'deployments' %}" class="btn btn-outline-secondary">Deployments →</a>
     </footer>
-    <div id="save-result" class="muted" style="padding: 4px 2px;"></div>
+    <div id="save-result" class="muted" style="padding: 4px 10px 8px; white-space: pre-wrap;"></div>
   </section>
 </div>
 
 <style>
-  .builder-wrap { display: grid; grid-template-columns: minmax(320px, 5fr) minmax(360px, 6fr); gap: 16px; height: calc(100vh - 140px); }
+  .builder-wrap { display: grid; grid-template-columns: 200px minmax(300px, 5fr) minmax(340px, 6fr); gap: 14px; height: calc(100vh - 140px); }
   .pane { display: flex; flex-direction: column; border: 1px solid #d9d9d9; border-radius: 10px; background: #fff; overflow: hidden; }
-  .pane-head { padding: 10px 14px; border-bottom: 1px solid #eee; display: flex; gap: 10px; align-items: baseline; }
+  .pane-head { padding: 10px 14px; border-bottom: 1px solid #eee; display: flex; gap: 10px; align-items: center; justify-content: space-between; }
   .muted { color: #888; font-size: 0.85em; }
+  .session-list { list-style: none; margin: 0; padding: 6px; overflow-y: auto; flex: 1; }
+  .session-list li { padding: 8px 10px; border-radius: 8px; cursor: pointer; font-size: 0.87em; display: flex; justify-content: space-between; gap: 6px; align-items: baseline; }
+  .session-list li:hover { background: #f4f4f4; }
+  .session-list li.active { background: #eaeaea; font-weight: 600; }
+  .session-list .del { color: #bbb; cursor: pointer; }
+  .session-list .del:hover { color: #c00; }
   .chat-log { flex: 1; overflow-y: auto; padding: 14px; display: flex; flex-direction: column; gap: 10px; }
-  .msg { padding: 9px 12px; border-radius: 10px; max-width: 92%; white-space: pre-wrap; line-height: 1.4; }
-  .msg.user { background: #1a1a1a; color: #fff; align-self: flex-end; }
+  .msg { padding: 9px 12px; border-radius: 10px; max-width: 92%; line-height: 1.45; overflow-wrap: anywhere; }
+  .msg.user { background: #1a1a1a; color: #fff; align-self: flex-end; white-space: pre-wrap; }
   .msg.assistant { background: #f2f2f2; align-self: flex-start; }
+  .msg.assistant p:last-child { margin-bottom: 0; }
+  .msg.assistant pre { background: #e8e8e8; padding: 8px; border-radius: 6px; overflow-x: auto; }
+  .msg.assistant code { background: #e8e8e8; border-radius: 4px; padding: 1px 4px; }
   .msg.thinking { color: #888; font-style: italic; background: transparent; }
   .chat-input { display: flex; gap: 8px; padding: 10px; border-top: 1px solid #eee; }
   .chat-input textarea { flex: 1; resize: none; border: 1px solid #ccc; border-radius: 8px; padding: 8px 10px; }
   #yaml-editor { flex: 1; border: 0; padding: 14px; font-family: ui-monospace, SFMono-Regular, Consolas, monospace; font-size: 13px; line-height: 1.45; resize: none; outline: none; background: #fafafa; }
   .save-bar { display: flex; gap: 8px; padding: 10px; border-top: 1px solid #eee; }
   .save-bar input { max-width: 320px; }
-  @media (max-width: 900px) { .builder-wrap { grid-template-columns: 1fr; height: auto; } #yaml-editor { min-height: 320px; } }
+  @media (max-width: 1000px) { .builder-wrap { grid-template-columns: 1fr; height: auto; } #yaml-editor { min-height: 320px; } .sessions-pane { max-height: 200px; } }
 </style>
 {% endblock %}
 
 {% block extra_scripts %}
+<script src="https://cdn.jsdelivr.net/npm/marked@12.0.2/marked.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/dompurify@3.1.6/dist/purify.min.js"></script>
 <script>
 (function () {
   const log = document.getElementById('chat-log');
@@ -67,19 +84,89 @@
   const saveBtn = document.getElementById('save-btn');
   const botName = document.getElementById('bot-name');
   const saveResult = document.getElementById('save-result');
-  const messages = [];
+  const sessionList = document.getElementById('session-list');
+  const newSessionBtn = document.getElementById('new-session');
+  const STARTER = editor.value;
+
+  let messages = [];
+  let sessionId = null;
+
+  const GREETING = "Hi! Tell me about the chat agent you want to build — who is it for and what should it do? I'll draft the config on the right as we talk.";
 
   function csrf() {
     const m = document.cookie.match(/csrftoken=([^;]+)/);
     return m ? m[1] : '';
   }
+  function renderMarkdown(el, content) {
+    if (window.marked && window.DOMPurify) {
+      el.innerHTML = DOMPurify.sanitize(marked.parse(content));
+    } else {
+      el.textContent = content;
+    }
+  }
   function addMsg(role, content, cls) {
     const div = document.createElement('div');
     div.className = 'msg ' + (cls || role);
-    div.textContent = content;
+    if (role === 'assistant' && !cls) renderMarkdown(div, content);
+    else div.textContent = content;
     log.appendChild(div);
     log.scrollTop = log.scrollHeight;
     return div;
+  }
+
+  function resetToNewSession() {
+    messages = [];
+    sessionId = null;
+    log.innerHTML = '';
+    addMsg('assistant', GREETING);
+    editor.value = STARTER;
+    yamlStatus.textContent = '';
+    saveResult.textContent = '';
+    highlightActive();
+  }
+
+  function highlightActive() {
+    sessionList.querySelectorAll('li').forEach(li =>
+      li.classList.toggle('active', li.dataset.id == sessionId));
+  }
+
+  async function refreshSessions() {
+    const res = await fetch("{% url 'copilot_sessions' %}");
+    const data = await res.json();
+    sessionList.innerHTML = '';
+    data.sessions.forEach(s => {
+      const li = document.createElement('li');
+      li.dataset.id = s.id;
+      const span = document.createElement('span');
+      span.textContent = s.title;
+      span.style.overflow = 'hidden'; span.style.textOverflow = 'ellipsis'; span.style.whiteSpace = 'nowrap';
+      const del = document.createElement('span');
+      del.className = 'del'; del.textContent = '✕'; del.title = 'Delete session';
+      del.onclick = async (e) => {
+        e.stopPropagation();
+        await fetch(`{% url 'copilot_sessions' %}${s.id}/`, { method: 'DELETE', headers: { 'X-CSRFToken': csrf() } });
+        if (sessionId == s.id) resetToNewSession();
+        refreshSessions();
+      };
+      li.appendChild(span); li.appendChild(del);
+      li.onclick = () => loadSession(s.id);
+      sessionList.appendChild(li);
+    });
+    highlightActive();
+  }
+
+  async function loadSession(id) {
+    const res = await fetch(`{% url 'copilot_sessions' %}${id}/`);
+    if (!res.ok) return;
+    const s = await res.json();
+    sessionId = s.id;
+    messages = s.messages || [];
+    log.innerHTML = '';
+    addMsg('assistant', GREETING);
+    messages.forEach(m => addMsg(m.role, m.content));
+    if (s.yaml) { editor.value = s.yaml; yamlStatus.textContent = 'restored'; }
+    saveResult.textContent = '';
+    highlightActive();
   }
 
   form.addEventListener('submit', async function (e) {
@@ -95,27 +182,27 @@
       const res = await fetch("{% url 'copilot_chat' %}", {
         method: 'POST',
         headers: { 'Content-Type': 'application/json', 'X-CSRFToken': csrf() },
-        body: JSON.stringify({ messages: messages, current_yaml: editor.value }),
+        body: JSON.stringify({ messages: messages, current_yaml: editor.value, session_id: sessionId }),
       });
       const data = await res.json();
       thinking.remove();
       if (!res.ok) throw new Error(data.error || res.statusText);
       addMsg('assistant', data.reply);
-      messages.push({ role: 'assistant', content: data.reply + (data.yaml ? '\n\n```yaml\n' + data.yaml + '```' : '') });
+      messages.push({ role: 'assistant', content: data.reply });
+      if (!sessionId && data.session_id) { sessionId = data.session_id; refreshSessions(); }
       if (data.yaml) {
         editor.value = data.yaml;
-        yamlStatus.textContent = 'updated ' + new Date().toLocaleTimeString();
+        yamlStatus.textContent = 'updated & validated ' + new Date().toLocaleTimeString();
       }
     } catch (err) {
       thinking.remove();
-      addMsg('assistant', 'Something went wrong: ' + err.message);
+      addMsg('assistant', 'Something went wrong: ' + err.message, 'assistant thinking');
     } finally {
       send.disabled = false;
       text.focus();
     }
   });
 
-  // Enter sends, Shift+Enter for newline
   text.addEventListener('keydown', function (e) {
     if (e.key === 'Enter' && !e.shiftKey) { e.preventDefault(); form.requestSubmit(); }
   });
@@ -141,6 +228,11 @@
       saveBtn.disabled = false;
     }
   });
+
+  newSessionBtn.addEventListener('click', resetToNewSession);
+
+  resetToNewSession();
+  refreshSessions();
 })();
 </script>
 {% endblock %}
